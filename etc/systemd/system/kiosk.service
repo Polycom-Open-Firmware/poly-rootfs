@@ -1,7 +1,7 @@
 [Unit]
 Description=TC8 fullscreen kiosk (cage + cog)
-After=systemd-user-sessions.service seatd.service network-online.target data.mount kiosk-config.service systemd-udev-settle.service
-Wants=network-online.target seatd.service kiosk-config.service data.mount
+After=systemd-user-sessions.service seatd.service kiosk-config.service
+Wants=seatd.service kiosk-config.service
 ConditionPathExists=/dev/dri/card0
 
 [Service]

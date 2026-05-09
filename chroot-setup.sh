@@ -64,7 +64,6 @@ systemctl enable systemd-networkd
 systemctl enable systemd-resolved
 systemctl enable systemd-timesyncd
 systemctl enable seatd.service
-systemctl enable data.mount
 systemctl enable kiosk-config.service
 systemctl enable kiosk-vt.service
 systemctl enable kiosk.service

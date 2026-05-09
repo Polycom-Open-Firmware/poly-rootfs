@@ -29,6 +29,13 @@ PKGS=$(sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' "$PKG_LIST" | tr '\n' ' ')
 # shellcheck disable=SC2086
 apt-get install -y --no-install-recommends $PKGS
 
+# systemd-resolved's postinst symlinks /etc/resolv.conf to a stub that isn't
+# served inside this chroot — breaks DNS for the rest of chroot-setup. Force
+# a usable resolv.conf (the symlink target gets re-set on first boot of the
+# real system because systemd-resolved.service runs there).
+rm -f /etc/resolv.conf
+printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /etc/resolv.conf
+
 # Build + install uMTP-Responder (umtprd) from source. Not in Debian; the
 # binary is ~70 KB so source-build is cheaper than vendoring a deb.
 echo "==> building umtprd (uMTP-Responder)"

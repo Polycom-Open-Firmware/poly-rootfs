@@ -90,26 +90,25 @@ if [ -n "$SSH_PUBKEY_SRC" ]; then
     fi
 fi
 
-# 5b. Optional root password + PasswordAuthentication. Source order:
-#     TC8_ROOT_PASSWORD env wins, else ./root_password file at repo root
-#     (gitignored). chroot-setup.sh applies the password on first boot.
-ROOT_PW=""
+# 5b. Root password — works on tty, USB CDC ACM gadget (/dev/ttyGS0), and ssh.
+#     Default is "root"; override with TC8_ROOT_PASSWORD env or
+#     ./root_password file at repo root (gitignored). sshd is configured to
+#     accept *both* pubkey and password — pubkey wins when both are present.
+ROOT_PW="root"
 if [ -n "${TC8_ROOT_PASSWORD:-}" ]; then
     ROOT_PW="$TC8_ROOT_PASSWORD"
 elif [ -f "$ROOT_DIR/root_password" ]; then
     ROOT_PW="$(head -n1 "$ROOT_DIR/root_password")"
 fi
-if [ -n "$ROOT_PW" ]; then
-    echo "==> baking root password + enabling PasswordAuthentication"
-    install -d -m 0755 "$ROOTFS/etc/ssh/sshd_config.d"
-    cat > "$ROOTFS/etc/ssh/sshd_config.d/99-tc8-rootpw.conf" <<EOF
+echo "==> baking root password (tty + CDC ACM + ssh)"
+install -d -m 1777 "$ROOTFS/tmp"
+printf '%s' "$ROOT_PW" > "$ROOTFS/tmp/.tc8_root_pw"
+chmod 0600 "$ROOTFS/tmp/.tc8_root_pw"
+install -d -m 0755 "$ROOTFS/etc/ssh/sshd_config.d"
+cat > "$ROOTFS/etc/ssh/sshd_config.d/99-tc8-rootpw.conf" <<EOF
 PermitRootLogin yes
 PasswordAuthentication yes
 EOF
-    install -d -m 1777 "$ROOTFS/tmp"
-    printf '%s' "$ROOT_PW" > "$ROOTFS/tmp/.tc8_root_pw"
-    chmod 0600 "$ROOTFS/tmp/.tc8_root_pw"
-fi
 
 # 5. Config overlay — copy etc/ before chroot-setup so ssh-keygen -A and
 #    `systemctl enable` see our unit files / network config / udev rules.

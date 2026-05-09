@@ -1,0 +1,14 @@
+[Unit]
+Description=TC8 USB CDC ACM gadget (root console on /dev/ttyGS0)
+DefaultDependencies=no
+After=sys-kernel-config.mount local-fs.target
+Before=getty.target sysinit.target
+ConditionPathExistsGlob=/sys/class/udc/*
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/tc8-usb-gadget.sh
+
+[Install]
+WantedBy=sysinit.target

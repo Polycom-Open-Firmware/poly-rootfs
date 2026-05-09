@@ -73,7 +73,45 @@ systemctl enable seatd.service
 systemctl enable kiosk-config.service
 systemctl enable kiosk-vt.service
 systemctl enable kiosk.service
+# USB CDC ACM gadget: end-user console access via the panel's USB data port.
+# Plug the data port into a host -> /dev/ttyACM0 with a getty waiting.
+systemctl enable tc8-usb-gadget.service
+systemctl enable serial-getty@ttyGS0.service
 systemctl set-default graphical.target
+
+# Install the USB gadget setup script (configfs dance for CDC ACM).
+install -d -m 0755 /usr/local/sbin
+cat > /usr/local/sbin/tc8-usb-gadget.sh <<'GADGET'
+#!/bin/sh
+# tc8-usb-gadget.sh — set up a CDC ACM gadget so plugging the panel's USB
+# data port into a host enumerates as /dev/ttyACM0 with a login on it.
+set -eu
+GADGET=/sys/kernel/config/usb_gadget/g1
+mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
+[ -e "$GADGET/UDC" ] && [ -s "$GADGET/UDC" ] && exit 0
+mkdir -p "$GADGET" && cd "$GADGET"
+echo 0x1d6b > idVendor
+echo 0x0104 > idProduct
+echo 0x0100 > bcdDevice
+echo 0x0200 > bcdUSB
+echo 0xEF > bDeviceClass
+echo 0x02 > bDeviceSubClass
+echo 0x01 > bDeviceProtocol
+mkdir -p strings/0x409
+SERIAL="$(cat /sys/devices/soc0/serial_number 2>/dev/null || echo TC8)"
+echo "Polycom"     > strings/0x409/manufacturer
+echo "TC8 Console" > strings/0x409/product
+echo "$SERIAL"     > strings/0x409/serialnumber
+mkdir -p configs/c.1/strings/0x409
+echo "CDC ACM Console" > configs/c.1/strings/0x409/configuration
+echo 250 > configs/c.1/MaxPower
+mkdir -p functions/acm.usb0
+ln -sf functions/acm.usb0 configs/c.1/
+UDC="$(ls /sys/class/udc 2>/dev/null | head -n1)"
+[ -n "$UDC" ] || { echo "tc8-usb-gadget: no UDC available" >&2; exit 1; }
+echo "$UDC" > UDC
+GADGET
+chmod 0755 /usr/local/sbin/tc8-usb-gadget.sh
 
 # SSH host keys: build.sh stages shared keys at /etc/ssh/ before this runs;
 # generate any missing ones (no-op if all present), and drop a reference copy.

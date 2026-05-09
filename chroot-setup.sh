@@ -40,6 +40,10 @@ find /usr -name '*.a' -delete 2>/dev/null || true
 
 # kiosk user (uid 1000, no password — login disabled, kiosk service runs via PAM).
 if ! id -u kiosk >/dev/null 2>&1; then
+    # Ensure groups exist (some not created by our package set)
+    for g in render input seat; do
+        getent group "$g" >/dev/null || groupadd --system "$g"
+    done
     useradd -u 1000 -m -s /bin/bash -G audio,video,render,input kiosk
     passwd -d kiosk
 fi

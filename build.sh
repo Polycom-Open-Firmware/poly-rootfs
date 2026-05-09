@@ -103,7 +103,7 @@ trap - EXIT
 
 # 9. Tar.
 echo "==> tarring rootfs -> $OUT/rootfs.tar.gz"
-tar --numeric-owner --one-file-system --exclude=./proc/* --exclude=./sys/* --exclude=./dev/* --exclude=./run/* -C "$ROOTFS" -czf "$OUT/rootfs.tar.gz" .
+tar --numeric-owner --one-file-system --exclude=./proc --exclude=./sys --exclude=./dev --exclude=./run -C "$ROOTFS" -czf "$OUT/rootfs.tar.gz" .
 
 # 10. Initramfs.
 echo "==> building initramfs"

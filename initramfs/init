@@ -1,0 +1,26 @@
+#!/bin/sh
+exec >/dev/console 2>&1
+echo "TC8 initramfs starting"
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev
+
+SLOT=$(cat /proc/cmdline | tr ' ' '\n' | grep '^androidboot.slot_suffix=' | cut -d= -f2)
+case "$SLOT" in
+    _a) ROOT=/dev/mmcblk2p5 ;;
+    _b) ROOT=/dev/mmcblk2p6 ;;
+    *) echo "WARN: no slot_suffix in cmdline, defaulting to _b"; ROOT=/dev/mmcblk2p6 ;;
+esac
+echo "Mounting root $ROOT (slot $SLOT)"
+
+for i in 1 2 3 4 5; do
+    [ -b "$ROOT" ] && break
+    sleep 1
+done
+
+mount -o rw "$ROOT" /sysroot || { echo "FAILED to mount $ROOT"; exec /bin/sh; }
+
+umount /proc
+umount /sys
+umount /dev
+exec switch_root /sysroot /sbin/init

@@ -1,0 +1,51 @@
+# TC8 slim rootfs package list.
+# One package per line. Blank lines and # comments ignored.
+# Installed inside the chroot with `apt-get install --no-install-recommends`.
+
+# init / base
+systemd
+systemd-sysv
+systemd-resolved
+systemd-timesyncd
+dbus
+libnss-systemd
+
+# networking
+iproute2
+iputils-ping
+isc-dhcp-client
+openssh-server
+
+# wayland kiosk: compositor + browser
+cage
+cog
+libwpebackend-fdo-1.0-1
+libwpewebkit-1.1-0
+libwpe-1.0-1
+xwayland
+
+# input / display / GPU
+seatd
+libinput-bin
+libegl1
+libgles2
+mesa-utils
+
+# audio
+alsa-utils
+
+# HW video decode (Hantro VPU via v4l2-request)
+gstreamer1.0-plugins-base
+gstreamer1.0-plugins-good
+gstreamer1.0-plugins-bad
+gstreamer1.0-libav
+v4l-utils
+
+# minimal utils + initramfs source
+util-linux
+psmisc
+procps
+less
+curl
+ca-certificates
+busybox-static

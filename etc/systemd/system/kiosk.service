@@ -1,0 +1,33 @@
+[Unit]
+Description=TC8 fullscreen kiosk (cage + cog)
+After=systemd-user-sessions.service seatd.service network-online.target data.mount kiosk-config.service systemd-udev-settle.service
+Wants=network-online.target seatd.service kiosk-config.service data.mount
+ConditionPathExists=/dev/dri/card0
+
+[Service]
+Type=simple
+User=kiosk
+Group=kiosk
+PAMName=login
+TTYPath=/dev/tty7
+TTYReset=no
+TTYVHangup=no
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+EnvironmentFile=-/etc/default/tc8-kiosk
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=XDG_SEAT=seat0
+Environment=HOME=/home/kiosk
+Environment=XDG_SESSION_TYPE=wayland
+Environment=XDG_CACHE_HOME=/data/kiosk/cache
+Environment=XDG_DATA_HOME=/data/kiosk/share
+Environment=COG_PLATFORM_FDO_VIEW_FULLSCREEN=1
+ExecStartPre=/bin/sh -c "mountpoint -q /data || mount /dev/mmcblk2p15 /data || true"
+ExecStartPre=/bin/sh -c "install -d -o kiosk -g kiosk -m 0700 /run/user/1000 /data/kiosk/cache /data/kiosk/share || true"
+ExecStart=/bin/sh -c "exec /usr/bin/cage -r -s -- /usr/bin/cog ${COG_OPTS} \"${KIOSK_URL:-https://duckduckgo.com/}\""
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical.target

@@ -1,0 +1,2 @@
+KIOSK_URL=https://www.bing.com/
+COG_OPTS="--platform=wl --enable-media=true"

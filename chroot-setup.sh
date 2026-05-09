@@ -79,7 +79,14 @@ cp /etc/ssh/ssh_host_*_key.pub  /etc/ssh/baked/ 2>/dev/null || true
 
 mkdir -p /root/.ssh
 chmod 700 /root/.ssh
-: > /root/.ssh/authorized_keys
+[ -f /root/.ssh/authorized_keys ] || : > /root/.ssh/authorized_keys
 chmod 600 /root/.ssh/authorized_keys
+
+# Optional: root password + sshd PasswordAuthentication, if build.sh
+# dropped /etc/ssh/sshd_config.d/99-tc8-rootpw.conf and a /tmp/.tc8_root_pw.
+if [ -f /tmp/.tc8_root_pw ]; then
+    echo "root:$(cat /tmp/.tc8_root_pw)" | chpasswd
+    rm -f /tmp/.tc8_root_pw
+fi
 
 echo "chroot-setup.sh: DONE"

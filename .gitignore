@@ -5,3 +5,4 @@ out/*
 *.cpio.gz
 ssh-keys/
 authorized_keys
+root_password

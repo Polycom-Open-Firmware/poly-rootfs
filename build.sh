@@ -150,7 +150,9 @@ BUSYBOX="$ROOTFS/usr/bin/busybox" "$ROOT_DIR/initramfs/build.sh"
 
 if [ "$KEEP" -eq 0 ]; then
     echo "==> removing work/rootfs (use --keep to retain)"
-    rm -rf "$ROOTFS"
+    # Non-fatal: in unprivileged LXCs lazy /proc umount can leave residue
+    # that we can't unlink. Tarball + initramfs are already built.
+    rm -rf "$ROOTFS" 2>/dev/null || echo "warning: leftover work/rootfs files (harmless in unpriv LXC)" >&2
 fi
 
 echo "==> done"

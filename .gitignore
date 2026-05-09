@@ -3,3 +3,4 @@ out/*
 !out/.gitkeep
 *.tar.gz
 *.cpio.gz
+ssh-keys/

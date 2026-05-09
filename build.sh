@@ -77,17 +77,6 @@ install -m 0755 "$ROOT_DIR/chroot-setup.sh"  "$ROOTFS/tmp/chroot-setup.sh"
 echo "==> applying etc/ overlay"
 rsync -a "$ROOT_DIR/etc/" "$ROOTFS/etc/"
 
-# 6. SSH host keys (shared — see ssh-keys/README.md).
-if [ -d "$ROOT_DIR/ssh-keys" ]; then
-    echo "==> installing shared SSH host keys"
-    install -d -m 0755 "$ROOTFS/etc/ssh"
-    for k in ssh_host_rsa_key ssh_host_ecdsa_key ssh_host_ed25519_key; do
-        if [ -f "$ROOT_DIR/ssh-keys/$k" ]; then
-            install -m 0600 "$ROOT_DIR/ssh-keys/$k"     "$ROOTFS/etc/ssh/$k"
-            install -m 0644 "$ROOT_DIR/ssh-keys/$k.pub" "$ROOTFS/etc/ssh/$k.pub"
-        fi
-    done
-fi
 
 # Bind /proc /sys /dev for chroot-setup's apt + ssh-keygen.
 mount -t proc  proc  "$ROOTFS/proc"

@@ -29,10 +29,15 @@ PKGS=$(sed -e 's/#.*$//' -e '/^[[:space:]]*$/d' "$PKG_LIST" | tr '\n' ' ')
 # shellcheck disable=SC2086
 apt-get install -y --no-install-recommends $PKGS
 
-# systemd-resolved's postinst symlinks /etc/resolv.conf to a stub that isn't
-# served inside this chroot — breaks DNS for the rest of chroot-setup. Force
-# a usable resolv.conf (the symlink target gets re-set on first boot of the
-# real system because systemd-resolved.service runs there).
+# systemd-resolved's postinst symlinks /etc/resolv.conf to
+# /run/systemd/resolve/stub-resolv.conf. Inside this chroot resolved isn't
+# running, so the symlink target is missing and DNS dies. Populating the
+# stub directly survives any further re-symlinking from dpkg triggers or
+# systemd-tmpfiles. systemd-resolved itself overwrites /run/.../stub-resolv
+# on first boot of the real system, so this leaks no test config.
+mkdir -p /run/systemd/resolve
+printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /run/systemd/resolve/stub-resolv.conf
+# And put a regular file at /etc/resolv.conf in case nothing follows the symlink.
 rm -f /etc/resolv.conf
 printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /etc/resolv.conf
 

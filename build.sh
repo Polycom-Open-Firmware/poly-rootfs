@@ -72,6 +72,20 @@ echo "==> staging package-list.txt and chroot-setup.sh"
 install -m 0644 "$ROOT_DIR/package-list.txt" "$ROOTFS/tmp/package-list.txt"
 install -m 0755 "$ROOT_DIR/chroot-setup.sh"  "$ROOTFS/tmp/chroot-setup.sh"
 
+# 5a. Optional SSH pubkey injection. Device generates its own host privkey
+#     on first boot (chroot-setup.sh runs `ssh-keygen -A`); we just slip in
+#     the operator's pubkey so root login works out of the box.
+if [ -n "${TC8_SSH_PUBKEY:-}" ]; then
+    if [ -f "$TC8_SSH_PUBKEY" ]; then
+        echo "==> baking SSH pubkey from $TC8_SSH_PUBKEY"
+        install -d -m 0700 "$ROOTFS/root/.ssh"
+        cat "$TC8_SSH_PUBKEY" >> "$ROOTFS/root/.ssh/authorized_keys"
+        chmod 0600 "$ROOTFS/root/.ssh/authorized_keys"
+    else
+        echo "warning: TC8_SSH_PUBKEY=$TC8_SSH_PUBKEY not found, skipping" >&2
+    fi
+fi
+
 # 5. Config overlay — copy etc/ before chroot-setup so ssh-keygen -A and
 #    `systemctl enable` see our unit files / network config / udev rules.
 echo "==> applying etc/ overlay"

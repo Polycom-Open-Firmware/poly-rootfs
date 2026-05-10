@@ -2,7 +2,7 @@ state.tas5751audio {
 	control.1 {
 		iface MIXER
 		name 'Master Volume'
-		value 358
+		value 409
 		comment {
 			access 'read write'
 			type INTEGER
@@ -10,7 +10,7 @@ state.tas5751audio {
 			range '0 - 511'
 			dbmin -10375
 			dbmax 2400
-			dbvalue.0 -1425
+			dbvalue.0 -150
 		}
 	}
 	control.2 {

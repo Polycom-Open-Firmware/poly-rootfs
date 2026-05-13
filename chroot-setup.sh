@@ -88,16 +88,21 @@ echo 'LANG=en_US.UTF-8' > /etc/default/locale
 ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 # u-boot environment editor config. The TC8 ships u-boot env on the eMMC
-# user area at byte offset 0x400000 (verified empirically by binary-scanning
-# a TC8 panel's dump). 64 KiB is the conventional env size for i.MX8MM
-# u-boot 2018 builds and matches what we saw in the dump.
+# user area at byte offset 0x400000 (verified by binary-scanning a TC8
+# dump — the `ethaddr=…` and `bootcmd=…` strings live at +0x4 past a
+# CRC32 header at +0x0). Block size is 4 KiB (CONFIG_ENV_SIZE = 0x1000 on
+# this Polycom u-boot build) — NOT the 64 KiB conventional size. With
+# env_size set wrong, fw_printenv's CRC verify fails and it falls back to
+# "default environment" with the message:
+#     Cannot read environment, using default
+#     Cannot read default environment from file
 #
 # With this in place, `fw_setenv tc8_bootargs '...'` from running Linux
 # rewrites the kernel cmdline without dropping to the serial u-boot prompt.
 # Single env (no redundancy) — this u-boot doesn't keep a backup copy.
 cat > /etc/fw_env.config <<'EOF'
 # device      offset      env_size
-/dev/mmcblk2  0x400000    0x10000
+/dev/mmcblk2  0x400000    0x1000
 EOF
 chmod 0644 /etc/fw_env.config
 

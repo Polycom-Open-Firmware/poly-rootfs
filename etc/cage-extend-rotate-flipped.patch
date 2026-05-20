@@ -1,0 +1,36 @@
+Description: extend cage's -r flag to reach FLIPPED transforms (4-7)
+ Cage's -r argument increments the wlroots output transform and wraps
+ at WL_OUTPUT_TRANSFORM_270 (= 3), so only NORMAL/90/180/270 are
+ reachable. Wlroots actually supports 8 transforms (0-7); 4-7 are the
+ FLIPPED variants (flipped, flipped-90, flipped-180, flipped-270).
+ .
+ Some kiosk panel mounts (e.g. the TC8 with native scan top at the
+ user's right) require a FLIPPED transform to land user-facing
+ orientation correctly — pure rotation cannot synthesize a flip.
+ Bump the wrap limit so `-r` 4..7 selects FLIPPED..FLIPPED_270.
+ .
+ The corresponding TC8 kiosk.service uses `cage -r -r -r -r -r -r -r`
+ (7× = FLIPPED_270) paired with the kernel-side
+ of_drm_get_panel_orientation reporting from panel-poly-lcc + mxsfb.
+Author: Alex Camilo <alex.camilo@gmail.com>
+---
+--- a/cage.c
++++ b/cage.c
+@@ -192,7 +192,7 @@ usage(FILE *file, const char *cage)
+ #endif
+ 		" -h\t Display this help message\n"
+ 		" -m extend Extend the display across all connected outputs (default)\n"
+ 		" -m last Use only the last connected output\n"
+-		" -r\t Rotate the output 90 degrees clockwise, specify up to three times\n"
++		" -r\t Rotate/flip the output, specify up to 7 times (4-7 = FLIPPED variants)\n"
+ 		" -s\t Allow VT switching\n"
+ 		" -v\t Show the version number and exit\n",
+ 		cage);
+@@ -231,7 +231,7 @@ parse_args(struct cg_server *server, int argc, char *argv[])
+ 		case 'r':
+ 			server->output_transform++;
+-			if (server->output_transform > WL_OUTPUT_TRANSFORM_270) {
++			if (server->output_transform > WL_OUTPUT_TRANSFORM_FLIPPED_270) {
+ 				server->output_transform = WL_OUTPUT_TRANSFORM_NORMAL;
+ 			}
+ 			break;

@@ -16,17 +16,17 @@ Author: Alex Camilo <alex.camilo@gmail.com>
 ---
 --- a/cage.c
 +++ b/cage.c
-@@ -192,7 +192,7 @@ usage(FILE *file, const char *cage)
- #endif
+@@ -192,7 +192,7 @@
  		" -h\t Display this help message\n"
  		" -m extend Extend the display across all connected outputs (default)\n"
  		" -m last Use only the last connected output\n"
 -		" -r\t Rotate the output 90 degrees clockwise, specify up to three times\n"
 +		" -r\t Rotate/flip the output, specify up to 7 times (4-7 = FLIPPED variants)\n"
  		" -s\t Allow VT switching\n"
- 		" -v\t Show the version number and exit\n",
- 		cage);
-@@ -231,7 +231,7 @@ parse_args(struct cg_server *server, int argc, char *argv[])
+ 		" -v\t Show the version number and exit\n"
+ 		"\n"
+@@ -230,7 +230,7 @@
+ 			break;
  		case 'r':
  			server->output_transform++;
 -			if (server->output_transform > WL_OUTPUT_TRANSFORM_270) {

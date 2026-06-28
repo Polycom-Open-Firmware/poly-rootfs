@@ -29,14 +29,14 @@ Environment=COG_PLATFORM_FDO_VIEW_FULLSCREEN=1
 Environment=WLR_DRM_DEVICES=/dev/dri/card1
 ExecStartPre=/bin/sh -c "mountpoint -q /data || mount /dev/mmcblk2p15 /data || true"
 ExecStartPre=/bin/sh -c "install -d -o kiosk -g kiosk -m 0700 /run/user/1000 /data/kiosk/cache /data/kiosk/share || true"
-# 7× `-r` = wlroots WL_OUTPUT_TRANSFORM_FLIPPED_270. This is the
-# transform that cancels the TC8 panel-mount's natural orientation
-# (paired with rotation=<90> in the panel DT + the
-# of_drm_get_panel_orientation propagation in kernel-patches 0001/2/6).
-# Reaching FLIPPED via -r requires the cage patch baked at chroot-setup
-# time (etc/cage-extend-rotate-flipped.patch). Without that patch,
-# upstream cage wraps -r at 3 (270°) and FLIPPED is unreachable.
-ExecStart=/bin/sh -c "exec /usr/bin/cage -r -r -r -r -r -r -r -s -- /usr/bin/cog ${COG_OPTS} \"${KIOSK_URL:-https://duckduckgo.com/}\""
+# 1× `-r` = wlroots WL_OUTPUT_TRANSFORM_90 (90 CCW) — the pure rotation that
+# lands content user-facing on the TC8 panel mount, paired with rotation=<90>
+# in the panel DT + of_drm_get_panel_orientation (kernel-patches 0001/2/6). It
+# matches the fbcon boot logo (fbcon=rotate:3 = 270 CW = 90 CCW). The earlier
+# FLIPPED_270 (7× -r) rendered 180-rotated + horizontally mirrored. A value in
+# 0-3 is reachable by stock cage; the cage-extend-rotate-flipped patch is no
+# longer required (left in place, harmless).
+ExecStart=/bin/sh -c "exec /usr/bin/cage -r -s -- /usr/bin/cog ${COG_OPTS} \"${KIOSK_URL:-https://duckduckgo.com/}\""
 Restart=always
 RestartSec=3
 

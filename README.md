@@ -3,18 +3,16 @@
 Builds the slim Debian bookworm arm64 kiosk rootfs for the
 **Polycom TC8** panel (i.MX 8M Mini).
 
-This repo only produces the rootfs and initramfs.  The kernel comes
-from `tc8-kernel-patches`; the flashable `boot.img`/`system.img`/
-`vbmeta.img`/`dtbo.img` artifacts are assembled by `tc8-firmware-build`.
+This repo only produces the rootfs.  The kernel comes
+from `tc8-kernel-patches`; the flashable `boot.img`/`dtbo.img`/
+`vbmeta.img` artifacts are assembled by `tc8-firmware-build`, which also
+packs this rootfs into the sparse `rootfs.simg` flashed to `userdata`.
 
 ## What this builds
 
 - `out/rootfs.tar.gz` — minbase Debian bookworm arm64 chroot, with
   the kiosk service stack (cage + cog/WPE), Hantro VPU userspace,
   baked SSH host keys, and our `/etc` overlay applied
-- `out/initramfs.cpio.gz` — slot-aware busybox initramfs that reads
-  `androidboot.slot_suffix` from `/proc/cmdline` and mounts
-  `/dev/mmcblk2p5` (slot_a) or `/dev/mmcblk2p6` (slot_b) as root
 
 ## Quick start
 
@@ -33,7 +31,6 @@ build.sh            # host-side: debootstrap, chroot, overlay, tarball
 chroot-setup.sh     # runs inside the chroot: apt + cleanup + enable units
 package-list.txt    # one Debian package per line (comments OK)
 etc/                # files copied verbatim into the rootfs at the same path
-initramfs/          # busybox /init script + its build script
 out/                # build output (gitignored)
 ```
 
@@ -50,7 +47,7 @@ out/                # build output (gitignored)
 - Audio: alsa-utils
 - Hantro VPU: gstreamer1.0-{plugins-base,plugins-good,plugins-bad,libav},
   v4l-utils
-- Minimal utils + initramfs source: util-linux, psmisc, procps, less,
+- Minimal utils: util-linux, psmisc, procps, less,
   curl, ca-certificates, busybox-static
 
 `--no-install-recommends` everywhere; `/usr/share/doc`, `/usr/share/man`,
@@ -66,8 +63,10 @@ Per-build defaults live in `etc/`:
 - `etc/systemd/system/{kiosk,kiosk-config,kiosk-vt}.service` —
   cage-on-tty7 service + a oneshot that overrides config from
   `/data/poly-kiosk/config` if present + an explicit `chvt 7` helper
-- `etc/systemd/system/data.mount` — mounts `/dev/mmcblk2p15`
-  (Android's userdata partition) as `/data` for cross-slot persistence
+- the `/data` mount (`/dev/mmcblk2p15`, Android's userdata partition, for
+  cross-slot persistence) is inlined in `kiosk.service` as an
+  `ExecStartPre` (`mountpoint -q /data || mount /dev/mmcblk2p15 /data`) —
+  there's no separate mount unit
 - `etc/udev/rules.d/{50-drm,70-seat}.rules` — gives the `kiosk` user
   group access to `/dev/dri/*` and seat-tags `/dev/input/event*` so
   libinput finds the Goodix touchscreen
@@ -91,28 +90,14 @@ partition is shared between A/B slots, so generated keys persist
 across slot swaps.  A small first-boot oneshot service in
 `etc/systemd/system/` would do this; not currently shipped.
 
-## Initramfs (`initramfs/init`)
-
-Slot-aware: parses `androidboot.slot_suffix=_a|_b` from `/proc/cmdline`,
-mounts the corresponding `system_X` partition rw, `switch_root`s into
-it.  Falls back to slot_b if no suffix is in cmdline; drops to a
-busybox shell on mount failure.  Build:
-
-```bash
-BUSYBOX=/path/to/busybox-static ./initramfs/build.sh
-```
-
-Or run the top-level `./build.sh`, which builds the rootfs first and
-then calls this script with `BUSYBOX=work/rootfs/usr/bin/busybox`.
-
 ## Known limitations
 
 - No automatic touch calibration; final viewing rotation is the sum of
   the kernel cmdline `video=DSI-1:rotate=270` (panel mounted 270° from
-  native) and cage's `-r -r` (180° CW in the compositor). wlroots
+  native) and cage's `-r` (90° CCW in the compositor). wlroots
   auto-maps the single-output touch transform off the wayland output
   rotation. If you change either piece, re-run the orientation sweep
-  with `tc8-firmware-build/tools/orient.html`.
+  with `smoke/orient.html`.
 - Shared SSH host keys (see above)
 - No NTP fallback if the network has no internet — boot clock is
   whatever the kernel set; HTTPS in cog will fail until `timesyncd`

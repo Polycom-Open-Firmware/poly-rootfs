@@ -3,14 +3,13 @@
 #
 # Produces:
 #   out/rootfs.tar.gz          — chrooted rootfs
-#   out/initramfs.cpio.gz      — slot-aware busybox initramfs
 #
 # Usage:
 #   sudo ./build.sh             # full build
 #   sudo ./build.sh --keep      # don't remove work/rootfs after tarballing
 #
 # Requires (host): debootstrap, qemu-user-static, binfmt-support active,
-#                  cpio, gzip, rsync, tar.
+#                  gzip, rsync, tar.
 #
 # Re-run idempotently: if work/rootfs already exists with /etc/debian_version,
 # skips debootstrap and re-applies chroot-setup + config overlay.
@@ -41,7 +40,6 @@ fi
 # Host-side dep check.
 need() { command -v "$1" >/dev/null || { echo "missing host tool: $1" >&2; exit 1; }; }
 need debootstrap
-need cpio
 need gzip
 need rsync
 need tar
@@ -155,16 +153,13 @@ trap - EXIT
 echo "==> tarring rootfs -> $OUT/rootfs.tar.gz"
 tar --numeric-owner --one-file-system --exclude=./proc --exclude=./sys --exclude=./dev --exclude=./run -C "$ROOTFS" -czf "$OUT/rootfs.tar.gz" .
 
-# 10. Initramfs.
-echo "==> building initramfs"
-BUSYBOX="$ROOTFS/usr/bin/busybox" "$ROOT_DIR/initramfs/build.sh"
 
 if [ "$KEEP" -eq 0 ]; then
     echo "==> removing work/rootfs (use --keep to retain)"
     # Non-fatal: in unprivileged LXCs lazy /proc umount can leave residue
-    # that we can't unlink. Tarball + initramfs are already built.
+    # that we can't unlink. Tarball is already built.
     rm -rf "$ROOTFS" 2>/dev/null || echo "warning: leftover work/rootfs files (harmless in unpriv LXC)" >&2
 fi
 
 echo "==> done"
-ls -lh "$OUT"/rootfs.tar.gz "$OUT"/initramfs.cpio.gz
+ls -lh "$OUT"/rootfs.tar.gz

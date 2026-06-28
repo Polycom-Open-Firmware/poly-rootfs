@@ -57,31 +57,6 @@ rm -rf "/tmp/uMTP-Responder-${UMTP_TAG}" /tmp/umtp.tgz
 apt-get purge -y gcc make libc6-dev
 apt-get autoremove -y --purge
 
-# Rebuild cage from source with a 1-line patch extending `-r` to reach
-# wlroots' FLIPPED transforms (4-7). Cage upstream wraps -r at
-# WL_OUTPUT_TRANSFORM_270 so only pure rotations are reachable; the TC8
-# panel mount needs FLIPPED_270 to land user-facing orientation right
-# (paired with the kernel-side panel-orientation propagation from
-# kernel-patches 0001/0002/0006). dpkg -i overrides the apt-installed
-# cage 0.1.4-4 in place.
-echo "==> rebuilding patched cage"
-echo "deb-src http://deb.debian.org/debian bookworm main" \
-    >> /etc/apt/sources.list.d/cage-src.list
-apt-get update
-apt-get install -y --no-install-recommends \
-    devscripts build-essential dpkg-dev quilt
-apt-get build-dep -y --no-install-recommends cage
-mkdir -p /tmp/cage-build && cd /tmp/cage-build
-apt-get source cage
-cd cage-*/
-patch -p1 < /etc/cage-extend-rotate-flipped.patch
-dpkg-buildpackage -us -uc -b 2>&1 | tail -5
-cd ..
-dpkg -i cage_*.deb
-cd / && rm -rf /tmp/cage-build /etc/cage-extend-rotate-flipped.patch \
-    /etc/apt/sources.list.d/cage-src.list
-apt-get purge -y devscripts build-essential dpkg-dev quilt
-apt-get autoremove -y --purge
 
 # Cache + locale + static-archive cleanup.
 apt-get clean
@@ -138,8 +113,8 @@ sed -i 's/^#\?Storage=.*/Storage=volatile/' /etc/systemd/journald.conf
 # /data mountpoint exists in the rootfs so `data.mount` has a target.
 mkdir -p /data
 
-# Default ALSA state — caps Master/Speaker at known-safe levels (Master 75%,
-# Speaker 85% ≈ -3 dB total through-chain). At full +24 dB the TAS5751 amp
+# Default ALSA state — caps Master/Speaker at known-safe levels (Master 80%,
+# Speaker 75% ≈ -3 dB total through-chain). At full +24 dB the TAS5751 amp
 # pulls enough current on certain content to brown out the panel and reboot
 # it; this default keeps it audible without going there. alsa-restore.service
 # applies this on every boot. Users can crank above it at runtime if they

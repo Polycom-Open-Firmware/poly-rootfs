@@ -34,8 +34,7 @@ ExecStartPre=/bin/sh -c "install -d -o kiosk -g kiosk -m 0700 /run/user/1000 /da
 # in the panel DT + of_drm_get_panel_orientation (kernel-patches 0001/2/6). It
 # matches the fbcon boot logo (fbcon=rotate:3 = 270 CW = 90 CCW). The earlier
 # FLIPPED_270 (7× -r) rendered 180-rotated + horizontally mirrored. A value in
-# 0-3 is reachable by stock cage; the cage-extend-rotate-flipped patch is no
-# longer required (left in place, harmless).
+# 0-3 is reachable by stock cage (no source rebuild needed).
 ExecStart=/bin/sh -c "exec /usr/bin/cage -r -s -- /usr/bin/cog ${COG_OPTS} \"${KIOSK_URL:-https://duckduckgo.com/}\""
 Restart=always
 RestartSec=3

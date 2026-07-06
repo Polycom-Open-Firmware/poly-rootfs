@@ -150,6 +150,11 @@ systemctl enable systemd-networkd
 systemctl enable systemd-resolved
 systemctl enable systemd-timesyncd
 systemctl enable seatd.service
+# tc8-wired-mac: stable Polycom-OUI MAC derived from the SoC UID, applied to
+# end0/lan before networkd — the stage-2 U-Boot (NET_RANDOM_ETHADDR) otherwise
+# hands the kernel a fresh random MAC every boot via the DTB fixup.
+chmod 0755 /usr/local/sbin/tc8-hwaddr.sh
+systemctl enable tc8-wired-mac.service
 # tc8-config: apply a fastboot-pushed config blob from the cache partition first
 chmod 0755 /etc/tc8-config/apply-config.sh 2>/dev/null || true
 systemctl enable tc8-config.service

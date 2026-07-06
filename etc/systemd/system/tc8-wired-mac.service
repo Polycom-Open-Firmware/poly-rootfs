@@ -1,11 +1,10 @@
 [Unit]
-Description=Provision stable Polycom-OUI wired MAC (end0/lan) from SoC UID
+Description=Provision factory wired MAC (end0/lan) from the stock U-Boot env
 Documentation=man:tc8-hwaddr
 # Run before systemd-networkd configures the DSA ports so the interfaces come
-# up (and DHCP) with the stable Polycom MAC, not the bootloader's random one.
+# up (and DHCP) with the factory MAC, not the bootloader's random one.
 Wants=network-pre.target
 Before=network-pre.target
-ConditionPathExists=/sys/devices/soc0/serial_number
 
 [Service]
 Type=oneshot

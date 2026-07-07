@@ -46,6 +46,37 @@ if [ "$got" != "$want" ]; then
 fi
 log "valid config blob: $len bytes"
 
+# --- apply-once gating ----------------------------------------------------
+# The full apply (chpasswd, CA install, hostname, wifi, kiosk URL…) runs ONCE
+# per unique config blob — re-running it on every boot is noisy and can fight
+# live changes. The blob's payload sha ($got) identifies the config; the marker
+# lives on facres (persistent). A plain reboot has the same blob → skip. A
+# re-provision writes a new blob → new sha → fresh apply.
+#
+# Sealed-mode wrinkle: with the rootfs behind a tmpfs overlay, /etc is
+# ephemeral, so "just skip" would revert to baked defaults. So on an
+# unchanged-config SEALED boot we silently restore the persisted /etc snapshot
+# instead of re-applying. In direct-rw (maintenance) mode /etc persists on its
+# own, so we simply skip and leave whatever's there.
+PERSIST=${TC8_CFG_PERSIST:-/persist}
+SHA_MARKER="$PERSIST/.tc8-config.sha"
+SNAP="$PERSIST/tc8-config-etc"
+CFG_PATHS="/etc/default/tc8-kiosk /etc/hostname /etc/shadow /etc/localtime /etc/timezone /etc/systemd/timesyncd.conf /etc/wpa_supplicant /etc/systemd/network/25-wlan0.network /usr/local/share/ca-certificates /etc/ssl/certs"
+SEALED=0; [ "$(findmnt -n -o FSTYPE / 2>/dev/null)" = overlay ] && SEALED=1
+PERSIST_OK=0; { [ -d "$PERSIST" ] && mountpoint -q "$PERSIST" 2>/dev/null; } && PERSIST_OK=1
+
+snap_restore() { for _p in $CFG_PATHS; do [ -e "$SNAP$_p" ] || continue; mkdir -p "$(dirname "$_p")"; cp -a "$SNAP$_p" "$(dirname "$_p")/" 2>/dev/null || true; done; }
+snap_save()    { rm -rf "$SNAP"; for _p in $CFG_PATHS; do [ -e "$_p" ] || continue; mkdir -p "$SNAP$(dirname "$_p")"; cp -a "$_p" "$SNAP$(dirname "$_p")/" 2>/dev/null || true; done; printf '%s\n' "$got" > "$SHA_MARKER"; }
+
+if [ "$PERSIST_OK" = 1 ] && [ "$(cat "$SHA_MARKER" 2>/dev/null)" = "$got" ]; then
+	if [ "$SEALED" = 1 ] && [ -d "$SNAP" ]; then
+		snap_restore; log "config unchanged — restored persisted state (apply-once)"; exit 0
+	elif [ "$SEALED" = 0 ]; then
+		log "config unchanged — already applied (apply-once)"; exit 0
+	fi
+fi
+log "applying config (new, changed, or first boot)"
+
 # --- apply ----------------------------------------------------------------
 KIOSK=${TC8_CFG_KIOSK:-/etc/default/tc8-kiosk}   # TC8_CFG_KIOSK override = test hook
 WPA_CONF=${TC8_CFG_WPA_CONF:-/etc/wpa_supplicant/wpa_supplicant-wlan0.conf}
@@ -160,5 +191,7 @@ done < "$tmp_p"
 
 apply_wifi
 [ "${ca_changed:-0}" = 1 ] && update-ca-certificates 2>/dev/null
+# Persist the applied /etc so sealed reboots restore it without re-applying.
+[ "$PERSIST_OK" = 1 ] && snap_save
 log "config applied"
 exit 0

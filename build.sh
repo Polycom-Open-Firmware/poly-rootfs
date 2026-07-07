@@ -35,10 +35,12 @@ MIRROR="${MIRROR:-http://deb.debian.org/debian}"
 KEEP=0
 PROFILES="kiosk"
 DEFAULT_PROFILE="kiosk"
+DEVICE="tc8"   # poly-<device>-profile-<role>; override with --device (M6: tc8|c60)
 for arg in "$@"; do
     case "$arg" in
         --keep) KEEP=1 ;;
         --profile=*) PROFILES="${arg#--profile=}" ;;
+        --device=*) DEVICE="${arg#--device=}" ;;
         *) echo "unknown arg: $arg" >&2; exit 2 ;;
     esac
 done
@@ -221,9 +223,9 @@ for prof in "${PLIST[@]}"; do
     # the profile chroot a real one so its apt can resolve the archive.
     rm -f "$PTREE/etc/resolv.conf"
     printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > "$PTREE/etc/resolv.conf"
-    echo "==> profile $prof: apt install poly-tc8-profile-$prof"
+    echo "==> profile $prof: apt install poly-$DEVICE-profile-$prof"
     chroot "$PTREE" sh -c "apt-get update && \
-        DEBIAN_FRONTEND=noninteractive apt-get install -y poly-tc8-profile-$prof && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y poly-$DEVICE-profile-$prof && \
         apt-get clean && rm -rf /var/lib/apt/lists/*"
     echo "TC8_PROFILE=\"$prof\"" >> "$PTREE/etc/tc8-version"
     umount -lf "$PTREE/dev" "$PTREE/sys" "$PTREE/proc" 2>/dev/null || true

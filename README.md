@@ -136,3 +136,16 @@ Build scripts and config files in this repo: GPL-2.0-only (see
 licenses (mostly GPL-2.0+ and LGPL-2.1+).  AOSP testkey + AVB
 tooling: handled by the downstream `tc8-firmware-build` repo, not
 here.
+
+## Device-role profiles
+
+`sudo ./build.sh --profile=<name>[,<name>…]` (default `kiosk`) builds one
+debootstrap base and then, per profile, an isolated clone with the
+`op-tc8-profile-<name>` metapackage installed from the
+[OpenPolycom archive](https://github.com/Polycom-Open-Firmware/apt) —
+emitted as `out/rootfs-<name>.tar.gz` with `TC8_PROFILE` stamped in
+`/etc/tc8-version`. `bare` = the untouched base; plain `rootfs.tar.gz`
+always aliases the default profile. The archive keyring + sources.list are
+baked into the base (`etc/apt/sources.list.d/openpolycom.list`), so both
+image builds and on-device `tc8-rw` maintenance installs resolve `op-*`
+packages with no setup. Big picture: `polycom_dev/PROFILES-PLAN.md`.

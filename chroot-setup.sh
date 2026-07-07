@@ -182,7 +182,10 @@ set -eu
 GADGET=/sys/kernel/config/usb_gadget/g1
 FFS_DIR=/dev/ffs-mtp
 mountpoint -q /sys/kernel/config || mount -t configfs none /sys/kernel/config
-[ -e "$GADGET/UDC" ] && [ -s "$GADGET/UDC" ] && exit 0
+# Already bound? Check CONTENT, not -s: configfs attribute files always
+# stat non-empty, so -s false-fires on a half-assembled tree and the
+# script exits before finishing assembly (everything below is idempotent).
+[ -e "$GADGET/UDC" ] && [ -n "$(cat "$GADGET/UDC" 2>/dev/null)" ] && exit 0
 mkdir -p "$GADGET" && cd "$GADGET"
 
 # IDs: Linux Foundation "Multifunction Composite Gadget"
@@ -208,28 +211,31 @@ echo 250 > configs/c.1/MaxPower
 
 # Function 1: CDC ACM (serial console).
 mkdir -p functions/acm.usb0
-ln -sf functions/acm.usb0 configs/c.1/
+[ -e configs/c.1/acm.usb0 ] || ln -s functions/acm.usb0 configs/c.1/
 
 # Function 2: CDC NCM (USB Ethernet).
 # Set static MAC pair so the panel's usb0 has a stable link layer.
 # Generate from SoC serial so multiple panels don't collide; fallback fixed.
 HEX=$(printf '%s' "$SERIAL" | md5sum | cut -c1-12)
 [ "${#HEX}" -eq 12 ] || HEX="020000123456"
-DEV_MAC=$(printf '02:%s:%s:%s:%s:%s' \
-    ${HEX:2:2} ${HEX:4:2} ${HEX:6:2} ${HEX:8:2} ${HEX:10:2})
-HOST_MAC=$(printf '02:%s:%s:%s:%s:%s' \
-    ${HEX:2:2} ${HEX:4:2} ${HEX:6:2} ${HEX:8:2} \
-    $(printf '%02x' $(( 0x${HEX:10:2} ^ 0x01 )) ))
+# NB: sliced with cut, NOT ${HEX:o:l} — this runs under dash (/bin/sh), and
+# bash substrings are a "Bad substitution" there (broke the whole gadget:
+# set -eu killed the script pre-assembly, so nothing ever enumerated).
+h2=$(printf '%s' "$HEX" | cut -c3-4); h3=$(printf '%s' "$HEX" | cut -c5-6)
+h4=$(printf '%s' "$HEX" | cut -c7-8); h5=$(printf '%s' "$HEX" | cut -c9-10)
+h6=$(printf '%s' "$HEX" | cut -c11-12)
+DEV_MAC="02:$h2:$h3:$h4:$h5:$h6"
+HOST_MAC="02:$h2:$h3:$h4:$h5:$(printf '%02x' $(( 0x$h6 ^ 0x01 )))"
 mkdir -p functions/ncm.usb0
 echo "$DEV_MAC"  > functions/ncm.usb0/dev_addr   # MAC seen on the panel side (usb0)
 echo "$HOST_MAC" > functions/ncm.usb0/host_addr  # MAC the host's usb-net iface gets
-ln -sf functions/ncm.usb0 configs/c.1/
+[ -e configs/c.1/ncm.usb0 ] || ln -s functions/ncm.usb0 configs/c.1/
 
 # Function 3: FunctionFS instance for MTP. The ffs.<name>/ directory must
 # match the mount tag and the daemon's expected path. umtprd attaches in
 # tc8-mtp.service after this script exits.
 mkdir -p functions/ffs.mtp
-ln -sf functions/ffs.mtp configs/c.1/
+[ -e configs/c.1/ffs.mtp ] || ln -s functions/ffs.mtp configs/c.1/
 mkdir -p "$FFS_DIR"
 mountpoint -q "$FFS_DIR" || mount -t functionfs mtp "$FFS_DIR"
 
@@ -278,7 +284,9 @@ ConditionPathExists=/dev/ffs-mtp/ep0
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/umtprd -c /etc/umtprd/umtprd.conf
+# NB: no -c flag — umtprd 1.8.1 has no such option (it errors out and the
+# UDC never binds); it reads /etc/umtprd/umtprd.conf, our path, by default.
+ExecStart=/usr/bin/umtprd
 # Once umtprd has the FFS endpoints open, bind the composite gadget to its
 # UDC. UDC writes return -ENODEV until all functions are ready, so retry.
 ExecStartPost=/bin/sh -c '\

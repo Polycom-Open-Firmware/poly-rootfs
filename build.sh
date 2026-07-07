@@ -189,6 +189,7 @@ for prof in "${PLIST[@]}"; do
     rm -rf "$PTREE"; mkdir -p "$PTREE"
     rsync -aHAX --exclude=/proc/ --exclude=/sys/ --exclude=/dev/ --exclude=/run/ "$ROOTFS/" "$PTREE/"
     cp /usr/bin/qemu-aarch64-static "$PTREE/usr/bin/"
+    mkdir -p "$PTREE/proc" "$PTREE/sys" "$PTREE/dev"   # excluded from clone; recreate mount points
     mount -t proc proc "$PTREE/proc"; mount --rbind /sys "$PTREE/sys"
     mount --rbind /dev "$PTREE/dev"
     echo "==> profile $prof: apt install poly-tc8-profile-$prof"

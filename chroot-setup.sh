@@ -254,25 +254,41 @@ install -d -m 0755 /etc/systemd/network
 install -d -m 0755 /etc/umtprd
 cat > /etc/umtprd/umtprd.conf <<'UMTP'
 # uMTP-Responder config for the TC8 panel.
-# /data is the eMMC userdata partition (Android-format ext4 quota).
-usb_vendor_id    = 0x1d6b
-usb_product_id   = 0x0104
-usb_class        = 0x00
-usb_subclass     = 0x00
-usb_protocol     = 0x00
-usb_dev_version  = 0x0100
-usb_max_packet_size = 0x40
+# NB upstream syntax: `key value` with NO equals sign; storage lines are
+# space-separated quoted fields. (The previous key=value file was silently
+# unparseable — umtprd ran on defaults: class 0x00, no storage.)
 
-manufacturer = "Polycom"
-product      = "TC8 Panel Storage"
-serial       = "TC8"
+# Export the PERSISTENT /root (facres-backed, survives reflashes), not the
+# whole filesystem.
+storage "/root" "Root home (persistent)" "rw"
 
-# storage = <path>, <description>, <flags>
-# flags: locked | always_locked | read_only | (empty for rw)
-storage = "/root", "Root home (persistent)",
+manufacturer "Polycom"
+product "TC8 Panel Storage"
+serial "TC8"
+firmware_version "Rev A"
 
-# Stay attached after first transfer
-loop_on_unlock = no
+# Windows binds its inbox MTP/WPD driver to Class 06/01/01 (still image /
+# PTP) + these MS extensions; class 0x00 leaves it at FAILED_INSTALL.
+mtp_extensions "microsoft.com: 1.0; android.com: 1.0;"
+interface "MTP"
+usb_class 0x6
+usb_subclass 0x1
+usb_protocol 0x1
+
+usb_vendor_id  0x1D6B
+usb_product_id 0x0104
+usb_dev_version 0x3008
+
+# FunctionFS mode — the gadget tree (tc8-usb-gadget.sh) mounts ffs at
+# /dev/ffs-mtp; umtprd drives the endpoints directly.
+usb_functionfs_mode 0x1
+usb_dev_path   "/dev/ffs-mtp/ep0"
+usb_epin_path  "/dev/ffs-mtp/ep1"
+usb_epout_path "/dev/ffs-mtp/ep2"
+usb_epint_path "/dev/ffs-mtp/ep3"
+usb_max_packet_size 0x200
+
+loop_on_disconnect 1
 UMTP
 
 # tc8-mtp.service: starts umtprd, then binds the gadget UDC. Order

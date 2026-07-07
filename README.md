@@ -1,11 +1,11 @@
-# tc8-rootfs
+# poly-rootfs
 
 Builds the slim Debian bookworm arm64 kiosk rootfs for the
 **Polycom TC8** panel (i.MX 8M Mini).
 
 This repo only produces the rootfs.  The kernel comes
-from `tc8-kernel-patches`; the flashable `boot.img`/`dtbo.img`/
-`vbmeta.img` artifacts are assembled by `tc8-firmware-build`, which also
+from `poly-kernel-patches`; the flashable `boot.img`/`dtbo.img`/
+`vbmeta.img` artifacts are assembled by `poly-firmware-build`, which also
 packs this rootfs into the sparse `rootfs.simg` flashed to `userdata`.
 
 ## What this builds
@@ -79,7 +79,7 @@ that at boot if present.
 
 ## Read-only rootfs, overlay writes, persistent /root
 
-On the flashed image the initramfs (assembled by `tc8-firmware-build`)
+On the flashed image the initramfs (assembled by `poly-firmware-build`)
 mounts `userdata` **read-only** and lays a tmpfs overlay over `/`: the
 system runs normally but every write is ephemeral and evaporates on
 reboot. Two escape hatches ship in this repo:
@@ -90,7 +90,7 @@ reboot. Two escape hatches ship in this repo:
   by the provisioner, so root's home survives reboots *and* reflashes.
   The saved fake-hwclock timestamp is persisted there too.
 - **Maintenance mode** — `tc8-rw [--reboot]` sets a sticky flag on
-  facres (`/persist/.tc8-rootfs-rw`); the next boot mounts the rootfs
+  facres (`/persist/.poly-rootfs-rw`); the next boot mounts the rootfs
   direct-rw with **no** overlay, so `apt install` etc. are safe and
   permanent. `tc8-ro && reboot` reseals. `tc8-mode` reports the current
   and next-boot mode, and interactive logins get a banner while in
@@ -101,7 +101,7 @@ by remounting the lower rw) — dpkg state would tear between the
 ephemeral upper and the persistent lower. Always use the reboot flow.
 
 Full design, boot flow and failure modes: `docs/RO-ROOT.md` in
-`tc8-firmware-build`.
+`poly-firmware-build`.
 
 ## SSH host keys
 
@@ -134,18 +134,24 @@ across slot swaps.  A small first-boot oneshot service in
 Build scripts and config files in this repo: GPL-2.0-only (see
 `LICENSE`).  Installed Debian packages: their respective upstream
 licenses (mostly GPL-2.0+ and LGPL-2.1+).  AOSP testkey + AVB
-tooling: handled by the downstream `tc8-firmware-build` repo, not
+tooling: handled by the downstream `poly-firmware-build` repo, not
 here.
 
 ## Device-role profiles
 
-`sudo ./build.sh --profile=<name>[,<name>…]` (default `kiosk`) builds one
-debootstrap base and then, per profile, an isolated clone with the
-`op-tc8-profile-<name>` metapackage installed from the
+`sudo ./build.sh --profile=<name>[,<name>…] --device=<tc8|c60>` (defaults:
+profile `kiosk`, device `tc8`) builds one debootstrap base and then, per
+profile, an isolated clone with the `poly-<device>-profile-<name>`
+metapackage installed from the
 [OpenPolycom archive](https://github.com/Polycom-Open-Firmware/apt) —
 emitted as `out/rootfs-<name>.tar.gz` with `TC8_PROFILE` stamped in
-`/etc/tc8-version`. `bare` = the untouched base; plain `rootfs.tar.gz`
-always aliases the default profile. The archive keyring + sources.list are
-baked into the base (`etc/apt/sources.list.d/openpolycom.list`), so both
-image builds and on-device `tc8-rw` maintenance installs resolve `op-*`
-packages with no setup. Big picture: `polycom_dev/PROFILES-PLAN.md`.
+`/etc/tc8-version`. `--device` picks the per-board metapackage
+(`poly-tc8-profile-kiosk` vs `poly-c60-profile-kiosk`); the composer
+(`poly-firmware-build`) passes it from `--target`. `bare` = the untouched
+base; plain `rootfs.tar.gz` always aliases the default profile. The archive
+keyring + sources.list are baked into the base
+(`etc/apt/sources.list.d/openpolycom.list`), so both image builds and
+on-device `tc8-rw` maintenance installs resolve `poly-*` packages with no
+setup. The device role at runtime is set from the config blob's `PROFILE`
+key by `apply-config` (kiosk / dev / smart-speaker). Big picture:
+`polycom_dev/PROFILES-PLAN.md`.

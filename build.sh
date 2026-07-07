@@ -2,11 +2,19 @@
 # TC8 slim Debian bookworm arm64 rootfs builder.
 #
 # Produces:
-#   out/rootfs.tar.gz          — chrooted rootfs
+#   out/rootfs.tar.gz            — the default profile (kiosk)
+#   out/rootfs-<profile>.tar.gz  — one per requested profile
 #
 # Usage:
-#   sudo ./build.sh             # full build
-#   sudo ./build.sh --keep      # don't remove work/rootfs after tarballing
+#   sudo ./build.sh                          # default profile (kiosk)
+#   sudo ./build.sh --profile=kiosk,bare     # explicit profile list
+#   sudo ./build.sh --keep                   # don't remove work trees
+#
+# A profile is the metapackage op-tc8-profile-<name> from the OpenPolycom
+# apt archive (baked into the base via sources.list.d/openpolycom.list).
+# The special profile "bare" installs nothing on top of the base. The base
+# is debootstrapped ONCE; each profile gets an isolated copy so variants
+# never pollute each other. See polycom_dev/PROFILES-PLAN.md (M2).
 #
 # Requires (host): debootstrap, qemu-user-static, binfmt-support active,
 #                  gzip, rsync, tar.
@@ -25,9 +33,12 @@ ARCH="arm64"
 MIRROR="${MIRROR:-http://deb.debian.org/debian}"
 
 KEEP=0
+PROFILES="kiosk"
+DEFAULT_PROFILE="kiosk"
 for arg in "$@"; do
     case "$arg" in
         --keep) KEEP=1 ;;
+        --profile=*) PROFILES="${arg#--profile=}" ;;
         *) echo "unknown arg: $arg" >&2; exit 2 ;;
     esac
 done
@@ -151,9 +162,47 @@ umount -lf "$ROOTFS/sys"     2>/dev/null || true
 umount -lf "$ROOTFS/proc"    2>/dev/null || true
 trap - EXIT
 
-# 9. Tar.
-echo "==> tarring rootfs -> $OUT/rootfs.tar.gz"
-tar --numeric-owner --one-file-system --exclude=./proc --exclude=./sys --exclude=./dev --exclude=./run -C "$ROOTFS" -czf "$OUT/rootfs.tar.gz" .
+# 9. Profile variants + tar. The base tree is complete; each profile gets
+# an isolated copy with its op-tc8-profile-<name> metapackage installed.
+tar_tree() {  # $1 = tree dir, $2 = output tarball
+    tar --numeric-owner --one-file-system --exclude=./proc --exclude=./sys \
+        --exclude=./dev --exclude=./run -C "$1" -czf "$2" .
+}
+
+IFS=',' read -ra PLIST <<< "$PROFILES"
+for prof in "${PLIST[@]}"; do
+    if [ "$prof" = bare ]; then
+        echo "==> profile bare: base tree as-is -> $OUT/rootfs-bare.tar.gz"
+        tar_tree "$ROOTFS" "$OUT/rootfs-bare.tar.gz"
+        continue
+    fi
+    PTREE="$WORK/profile-$prof"
+    echo "==> profile $prof: cloning base"
+    rm -rf "$PTREE"; mkdir -p "$PTREE"
+    rsync -aHAX "$ROOTFS/" "$PTREE/"
+    cp /usr/bin/qemu-aarch64-static "$PTREE/usr/bin/"
+    mount -t proc proc "$PTREE/proc"; mount --rbind /sys "$PTREE/sys"
+    mount --rbind /dev "$PTREE/dev"
+    echo "==> profile $prof: apt install op-tc8-profile-$prof"
+    chroot "$PTREE" sh -c "apt-get update && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y op-tc8-profile-$prof && \
+        apt-get clean && rm -rf /var/lib/apt/lists/*"
+    echo "TC8_PROFILE=\"$prof\"" >> "$PTREE/etc/tc8-version"
+    umount -lf "$PTREE/dev" "$PTREE/sys" "$PTREE/proc" 2>/dev/null || true
+    rm -f "$PTREE/usr/bin/qemu-aarch64-static"
+    echo "==> tarring profile $prof -> $OUT/rootfs-$prof.tar.gz"
+    tar_tree "$PTREE" "$OUT/rootfs-$prof.tar.gz"
+    [ "$KEEP" -eq 0 ] && rm -rf "$PTREE" 2>/dev/null || true
+done
+
+# Compatibility: plain rootfs.tar.gz = the default profile (kiosk) when
+# built, else the bare base — existing tooling keeps working unchanged.
+if [ -f "$OUT/rootfs-$DEFAULT_PROFILE.tar.gz" ]; then
+    cp -f "$OUT/rootfs-$DEFAULT_PROFILE.tar.gz" "$OUT/rootfs.tar.gz"
+else
+    echo "==> tarring base -> $OUT/rootfs.tar.gz"
+    tar_tree "$ROOTFS" "$OUT/rootfs.tar.gz"
+fi
 
 
 if [ "$KEEP" -eq 0 ]; then
@@ -164,4 +213,4 @@ if [ "$KEEP" -eq 0 ]; then
 fi
 
 echo "==> done"
-ls -lh "$OUT"/rootfs.tar.gz
+ls -lh "$OUT"/rootfs*.tar.gz

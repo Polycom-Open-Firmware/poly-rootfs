@@ -1,0 +1,15 @@
+[Unit]
+Description=Mark the booted A/B slot successful (stop boota's retry countdown)
+Documentation=file:///usr/local/src/tc8-bootctl.c
+# Late enough that "we booted" means something: network config applied and
+# the kiosk launched. Without this mark, boota strands the panel in fastboot
+# after 7 boots.
+After=tc8-config.service kiosk.service systemd-networkd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/tc8-bootctl mark-successful
+
+[Install]
+WantedBy=multi-user.target

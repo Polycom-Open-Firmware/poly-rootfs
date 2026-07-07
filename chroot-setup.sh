@@ -54,6 +54,10 @@ tar -xzf /tmp/umtp.tgz -C /tmp
   && make -j"$(nproc)" \
   && install -m 0755 umtprd /usr/bin/umtprd )
 rm -rf "/tmp/uMTP-Responder-${UMTP_TAG}" /tmp/umtp.tgz
+
+# tc8-bootctl: mark-boot-successful for the A/B bootctrl (boota strands the
+# panel in fastboot after 7 boots otherwise). Built here while gcc is around.
+gcc -O2 -o /usr/local/sbin/tc8-bootctl /usr/local/src/tc8-bootctl.c
 apt-get purge -y gcc make libc6-dev
 apt-get autoremove -y --purge
 
@@ -151,6 +155,8 @@ systemctl enable systemd-resolved
 systemctl enable systemd-timesyncd
 systemctl enable seatd.service
 systemctl enable tc8-persist-root.service
+# Without this, boota's retry counter hits 0 after 7 boots -> fastboot.
+systemctl enable tc8-boot-successful.service
 # tc8-config: apply a fastboot-pushed config blob from the cache partition first
 chmod 0755 /etc/tc8-config/apply-config.sh 2>/dev/null || true
 systemctl enable tc8-config.service

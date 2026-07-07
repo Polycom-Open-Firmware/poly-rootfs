@@ -59,6 +59,32 @@ need tar
     exit 1
 }
 
+# Give a chroot its OWN private /dev — a tmpfs with freshly-made device nodes —
+# rather than bind-mounting the host/container's real /dev. Sharing the real /dev
+# lets chroot/rsync/umount operations corrupt it: on a privileged LXC /dev/null
+# flips into a regular file, which then swallows every `> /dev/null` and wedges
+# the build. A private tmpfs is isolated and disposable.
+setup_dev() {
+    local d="$1/dev"
+    mkdir -p "$d"
+    mountpoint -q "$d" || mount -t tmpfs -o mode=0755,nosuid tmpfs "$d"
+    [ -e "$d/null"    ] || mknod -m 666 "$d/null"    c 1 3
+    [ -e "$d/zero"    ] || mknod -m 666 "$d/zero"    c 1 5
+    [ -e "$d/full"    ] || mknod -m 666 "$d/full"    c 1 7
+    [ -e "$d/random"  ] || mknod -m 444 "$d/random"  c 1 8
+    [ -e "$d/urandom" ] || mknod -m 444 "$d/urandom" c 1 9
+    [ -e "$d/tty"     ] || mknod -m 666 "$d/tty"     c 5 0
+    [ -e "$d/console" ] || mknod -m 600 "$d/console" c 5 1
+    ln -sf /proc/self/fd "$d/fd"
+    ln -sf /proc/self/fd/0 "$d/stdin"
+    ln -sf /proc/self/fd/1 "$d/stdout"
+    ln -sf /proc/self/fd/2 "$d/stderr"
+    mkdir -p "$d/pts" "$d/shm"
+    mountpoint -q "$d/pts" || mount -t devpts -o mode=0620,gid=5,ptmxmode=666 devpts "$d/pts" 2>/dev/null || true
+    mountpoint -q "$d/shm" || mount -t tmpfs tmpfs "$d/shm" 2>/dev/null || true
+    [ -e "$d/ptmx" ] || ln -sf pts/ptmx "$d/ptmx"
+}
+
 mkdir -p "$WORK" "$OUT"
 
 # 1. debootstrap (two-stage, qemu-binfmt for second stage).
@@ -150,9 +176,8 @@ chmod 0644 "$ROOTFS/etc/fake-hwclock.data"
 # Bind /proc /sys /dev for chroot-setup's apt + ssh-keygen.
 mount --bind /proc "$ROOTFS/proc"
 mount --bind /sys "$ROOTFS/sys"
-mount --bind   /dev  "$ROOTFS/dev"
-mount -t devpts devpts "$ROOTFS/dev/pts" || true
-trap 'umount -lf "$ROOTFS/dev/pts" 2>/dev/null || true; \
+setup_dev "$ROOTFS"
+trap 'umount -lf "$ROOTFS/dev/pts" "$ROOTFS/dev/shm" 2>/dev/null || true; \
       umount -lf "$ROOTFS/dev"     2>/dev/null || true; \
       umount -lf "$ROOTFS/sys"     2>/dev/null || true; \
       umount -lf "$ROOTFS/proc"    2>/dev/null || true' EXIT
@@ -164,7 +189,7 @@ rm -f "$ROOTFS/tmp/chroot-setup.sh" "$ROOTFS/tmp/package-list.txt"
 rm -f "$ROOTFS/usr/bin/qemu-aarch64-static"
 
 # Tear down the binds before tar-ing.
-umount -lf "$ROOTFS/dev/pts" 2>/dev/null || true
+umount -lf "$ROOTFS/dev/pts" "$ROOTFS/dev/shm" 2>/dev/null || true
 umount -lf "$ROOTFS/dev"     2>/dev/null || true
 umount -lf "$ROOTFS/sys"     2>/dev/null || true
 umount -lf "$ROOTFS/proc"    2>/dev/null || true
@@ -189,9 +214,9 @@ for prof in "${PLIST[@]}"; do
     rm -rf "$PTREE"; mkdir -p "$PTREE"
     rsync -aHAX --exclude=/proc/ --exclude=/sys/ --exclude=/dev/ --exclude=/run/ "$ROOTFS/" "$PTREE/"
     cp /usr/bin/qemu-aarch64-static "$PTREE/usr/bin/"
-    mkdir -p "$PTREE/proc" "$PTREE/sys" "$PTREE/dev"   # excluded from clone; recreate mount points
+    mkdir -p "$PTREE/proc" "$PTREE/sys"   # excluded from clone; recreate mount points
     mount -t proc proc "$PTREE/proc"; mount --rbind /sys "$PTREE/sys"
-    mount --rbind /dev "$PTREE/dev"
+    setup_dev "$PTREE"   # private /dev (not a bind of the host's — see setup_dev)
     echo "==> profile $prof: apt install poly-tc8-profile-$prof"
     chroot "$PTREE" sh -c "apt-get update && \
         DEBIAN_FRONTEND=noninteractive apt-get install -y poly-tc8-profile-$prof && \

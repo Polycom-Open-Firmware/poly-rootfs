@@ -1,0 +1,28 @@
+#!/bin/sh
+# tc8-ro — disarm maintenance mode: clear the direct-rw flag so the next
+# boot goes back to the default sealed state (read-only rootfs + ephemeral
+# tmpfs overlay). Counterpart of tc8-rw; see that script for the flow.
+
+set -eu
+
+FLAG=${TC8_RW_FLAG:-/persist/.tc8-rootfs-rw}
+
+/usr/local/sbin/tc8-persist-root.sh >/dev/null 2>&1 || true
+if [ -e "$FLAG" ]; then
+	rm -f "$FLAG"
+	sync
+	echo "tc8-ro: next boot will use the sealed overlay rootfs (default)."
+else
+	echo "tc8-ro: maintenance flag was not set — nothing to do."
+fi
+
+if grep -q '^overlay / ' /proc/mounts; then
+	echo "tc8-ro: (this boot is already overlay mode)"
+else
+	echo "tc8-ro: reboot to leave maintenance mode."
+fi
+
+if [ "${1:-}" = "--reboot" ] || [ "${1:-}" = "-r" ]; then
+	echo "tc8-ro: rebooting now..."
+	exec systemctl reboot
+fi

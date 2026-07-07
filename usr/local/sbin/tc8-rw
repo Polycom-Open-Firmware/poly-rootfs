@@ -1,0 +1,38 @@
+#!/bin/sh
+# tc8-rw — arm MAINTENANCE MODE: on the next boot the initramfs mounts the
+# rootfs (userdata) directly READ-WRITE, with no tmpfs overlay. Use it for
+# real persistent changes — apt install, editing baked config, etc:
+#
+#   tc8-rw --reboot          # or: tc8-rw && reboot
+#   ... panel comes back in direct-rw mode ...
+#   apt update && apt install <pkg>
+#   tc8-ro && reboot         # seal it again
+#
+# The flag is STICKY (survives reboots and even reflashes — it lives on the
+# facres partition) so multi-reboot maintenance sessions work; `tc8-mode`
+# shows the current and next-boot mode. Never write to the lower fs while
+# an overlay boot is active — always go through this reboot flow.
+
+set -eu
+
+FLAG=${TC8_RW_FLAG:-/persist/.tc8-rootfs-rw}
+
+# Make sure facres is mounted at /persist (idempotent; also formats a
+# virgin facres). Without facres there is nowhere to keep the flag.
+/usr/local/sbin/tc8-persist-root.sh >/dev/null 2>&1 || true
+mountpoint -q "$(dirname "$FLAG")" || {
+	echo "tc8-rw: facres is not mounted at /persist — cannot set the mode flag." >&2
+	echo "tc8-rw: (is the facres partition present/healthy? see tc8-persist-root)" >&2
+	exit 1
+}
+
+touch "$FLAG"
+sync
+echo "tc8-rw: next boot will mount the rootfs DIRECT-RW (no overlay)."
+echo "tc8-rw: changes made there are PERMANENT. Run 'tc8-ro && reboot' when done."
+
+if [ "${1:-}" = "--reboot" ] || [ "${1:-}" = "-r" ]; then
+	echo "tc8-rw: rebooting now..."
+	exec systemctl reboot
+fi
+echo "tc8-rw: reboot to enter maintenance mode."

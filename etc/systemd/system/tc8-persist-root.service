@@ -8,6 +8,10 @@ Before=tc8-config.service ssh.service kiosk-config.service kiosk.service
 Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/local/sbin/tc8-persist-root.sh
+# Save the clock through the /etc/fake-hwclock.data -> facres file bind while
+# it is still mounted (fake-hwclock's own ExecStop write would land on the
+# ephemeral overlay upper in sealed mode and be lost).
+ExecStop=-/bin/sh -c 'command -v fake-hwclock >/dev/null 2>&1 && fake-hwclock save || true'
 
 [Install]
 WantedBy=multi-user.target

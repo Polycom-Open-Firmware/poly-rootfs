@@ -1,0 +1,29 @@
+#!/bin/sh
+# tc8-mode — show how the rootfs is mounted now and what the next boot will do.
+
+FLAG=${TC8_RW_FLAG:-/persist/.tc8-rootfs-rw}
+
+roottype=$(awk '$2 == "/" { print $3; exit }' /proc/mounts)
+case "$roottype" in
+overlay)
+	echo "current : overlay — rootfs read-only, writes are EPHEMERAL (tmpfs)"
+	;;
+ext4)
+	echo "current : direct-rw — MAINTENANCE MODE, writes are permanent"
+	;;
+*)
+	echo "current : $roottype root (dev/netboot?)"
+	;;
+esac
+
+if mountpoint -q /persist 2>/dev/null; then
+	if [ -e "$FLAG" ]; then
+		echo "next    : direct-rw maintenance mode ($FLAG set)"
+	else
+		echo "next    : sealed overlay mode (default)"
+	fi
+	echo "persist : /root is on facres (/persist/tc8-root)"
+else
+	echo "next    : sealed overlay mode (facres not mounted — no flag possible)"
+	echo "persist : NOT active — /root is on the rootfs"
+fi

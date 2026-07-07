@@ -1,5 +1,7 @@
 #!/bin/sh
-# Keep root's home on the facres partition when it is available.
+# Keep root's home (and a little persistent state) on the facres partition
+# when it is available. Runs in BOTH rootfs modes (overlay and direct-rw) —
+# facres is a separate partition, so /root behaves identically either way.
 
 set -eu
 
@@ -45,3 +47,22 @@ if ! mountpoint -q /root; then
 fi
 chmod 0700 /root
 log "/root is persistent on facres"
+
+# fake-hwclock: with the rootfs sealed behind a tmpfs overlay, the saved
+# clock in /etc/fake-hwclock.data evaporates on reboot and every boot would
+# start at the image build time (breaking TLS until NTP syncs). Keep the
+# saved clock on facres via a file bind; the unit's ExecStop saves through
+# it at shutdown.
+if command -v fake-hwclock >/dev/null 2>&1; then
+	if [ ! -f "$MNT/fake-hwclock.data" ]; then
+		cp /etc/fake-hwclock.data "$MNT/fake-hwclock.data" 2>/dev/null \
+			|| : > "$MNT/fake-hwclock.data"
+	fi
+	[ -f /etc/fake-hwclock.data ] || : > /etc/fake-hwclock.data
+	if ! grep -q ' /etc/fake-hwclock.data ' /proc/mounts; then
+		mount --bind "$MNT/fake-hwclock.data" /etc/fake-hwclock.data 2>/dev/null \
+			|| log "failed to bind fake-hwclock.data (clock will reset each boot)"
+	fi
+	# Jump the clock forward to the persisted value (no-op if already ahead).
+	fake-hwclock load >/dev/null 2>&1 || true
+fi

@@ -1,4 +1,6 @@
-# initramfs mounts root rw; kernel/data partitions handled separately.
+# / is mounted by the initramfs: read-only lower + tmpfs overlay by default,
+# or direct-rw when maintenance mode is armed (see tc8-rw/tc8-ro/tc8-mode).
+# facres -> /persist (/root) is handled by tc8-persist-root.service.
 proc             /proc    proc    defaults                          0 0
 sys              /sys     sysfs   defaults                          0 0
 tmpfs            /tmp     tmpfs   defaults,nosuid,nodev,size=64M    0 0

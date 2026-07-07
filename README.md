@@ -77,6 +77,32 @@ Per-device overrides are intended to live on `/data/poly-kiosk/config`
 (populated separately during deployment); `kiosk-config.service` reads
 that at boot if present.
 
+## Read-only rootfs, overlay writes, persistent /root
+
+On the flashed image the initramfs (assembled by `tc8-firmware-build`)
+mounts `userdata` **read-only** and lays a tmpfs overlay over `/`: the
+system runs normally but every write is ephemeral and evaporates on
+reboot. Two escape hatches ship in this repo:
+
+- **Persistent `/root`** — `tc8-persist-root.service` mounts the 1 GiB
+  `facres` GPT partition at `/persist` (auto-`mkfs.ext4` on first use)
+  and binds `/persist/tc8-root` onto `/root`. facres is never touched
+  by the provisioner, so root's home survives reboots *and* reflashes.
+  The saved fake-hwclock timestamp is persisted there too.
+- **Maintenance mode** — `tc8-rw [--reboot]` sets a sticky flag on
+  facres (`/persist/.tc8-rootfs-rw`); the next boot mounts the rootfs
+  direct-rw with **no** overlay, so `apt install` etc. are safe and
+  permanent. `tc8-ro && reboot` reseals. `tc8-mode` reports the current
+  and next-boot mode, and interactive logins get a banner while in
+  maintenance mode (`etc/profile.d/tc8-mode.sh`).
+
+Never write to the underlying fs while an overlay boot is active (e.g.
+by remounting the lower rw) — dpkg state would tear between the
+ephemeral upper and the persistent lower. Always use the reboot flow.
+
+Full design, boot flow and failure modes: `docs/RO-ROOT.md` in
+`tc8-firmware-build`.
+
 ## SSH host keys
 
 `chroot-setup.sh` runs `ssh-keygen -A` inside the chroot so every

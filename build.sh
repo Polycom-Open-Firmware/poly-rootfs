@@ -10,7 +10,7 @@
 #   sudo ./build.sh --profile=kiosk,bare     # explicit profile list
 #   sudo ./build.sh --keep                   # don't remove work trees
 #
-# A profile is the metapackage op-tc8-profile-<name> from the OpenPolycom
+# A profile is the metapackage poly-tc8-profile-<name> from the OpenPolycom
 # apt archive (baked into the base via sources.list.d/openpolycom.list).
 # The special profile "bare" installs nothing on top of the base. The base
 # is debootstrapped ONCE; each profile gets an isolated copy so variants
@@ -171,7 +171,7 @@ umount -lf "$ROOTFS/proc"    2>/dev/null || true
 trap - EXIT
 
 # 9. Profile variants + tar. The base tree is complete; each profile gets
-# an isolated copy with its op-tc8-profile-<name> metapackage installed.
+# an isolated copy with its poly-tc8-profile-<name> metapackage installed.
 tar_tree() {  # $1 = tree dir, $2 = output tarball
     tar --numeric-owner --one-file-system --exclude=./proc --exclude=./sys \
         --exclude=./dev --exclude=./run -C "$1" -czf "$2" .
@@ -191,9 +191,9 @@ for prof in "${PLIST[@]}"; do
     cp /usr/bin/qemu-aarch64-static "$PTREE/usr/bin/"
     mount -t proc proc "$PTREE/proc"; mount --rbind /sys "$PTREE/sys"
     mount --rbind /dev "$PTREE/dev"
-    echo "==> profile $prof: apt install op-tc8-profile-$prof"
+    echo "==> profile $prof: apt install poly-tc8-profile-$prof"
     chroot "$PTREE" sh -c "apt-get update && \
-        DEBIAN_FRONTEND=noninteractive apt-get install -y op-tc8-profile-$prof && \
+        DEBIAN_FRONTEND=noninteractive apt-get install -y poly-tc8-profile-$prof && \
         apt-get clean && rm -rf /var/lib/apt/lists/*"
     echo "TC8_PROFILE=\"$prof\"" >> "$PTREE/etc/tc8-version"
     umount -lf "$PTREE/dev" "$PTREE/sys" "$PTREE/proc" 2>/dev/null || true

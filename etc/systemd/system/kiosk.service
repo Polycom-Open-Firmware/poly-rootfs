@@ -35,7 +35,7 @@ ExecStartPre=/bin/sh -c "install -d -o kiosk -g kiosk -m 0700 /run/user/1000 /da
 # matches the fbcon boot logo (fbcon=rotate:3 = 270 CW = 90 CCW). The earlier
 # FLIPPED_270 (7× -r) rendered 180-rotated + horizontally mirrored. A value in
 # 0-3 is reachable by stock cage (no source rebuild needed).
-ExecStart=/bin/sh -c "exec /usr/bin/cage -r -s -- /usr/bin/cog ${COG_OPTS} \"${KIOSK_URL:-https://duckduckgo.com/}\""
+ExecStart=/usr/local/bin/kiosk-launch
 Restart=always
 RestartSec=3
 

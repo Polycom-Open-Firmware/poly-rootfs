@@ -1,0 +1,26 @@
+#!/bin/sh
+# kiosk-launch — start the kiosk compositor + browser engine. Invoked by
+# kiosk.service; environment comes from its EnvironmentFile
+# (/etc/default/tc8-kiosk): KIOSK_URL, KIOSK_ENGINE, COG_OPTS, CHROMIUM_OPTS.
+#
+# KIOSK_ENGINE selects the browser:
+#   webkit (default)  cog under cage — lightweight, always present
+#   chromium          /usr/bin/chromium under cage (poly-app-chromium);
+#                     falls back to cog with a warning if the binary is
+#                     absent — the kiosk must never fail to start because
+#                     an engine package isn't baked.
+
+URL="${KIOSK_URL:-https://duckduckgo.com/}"
+
+case "${KIOSK_ENGINE:-webkit}" in
+chromium)
+	if [ -x /usr/bin/chromium ]; then
+		exec /usr/bin/cage -d -s -- /usr/bin/chromium \
+			--kiosk --no-first-run --disable-infobars \
+			--ozone-platform=wayland ${CHROMIUM_OPTS} "$URL"
+	fi
+	echo "kiosk: KIOSK_ENGINE=chromium but /usr/bin/chromium is missing — falling back to cog" >&2
+	;;
+esac
+
+exec /usr/bin/cage -r -s -- /usr/bin/cog ${COG_OPTS} "$URL"

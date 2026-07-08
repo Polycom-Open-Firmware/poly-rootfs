@@ -3,3 +3,5 @@ KIOSK_URL=file:///etc/tc8-kiosk/touchtest.html
 # the path that honors COG_PLATFORM_FDO_VIEW_FULLSCREEN=1. --platform=wl
 # would make cog open a regular Wayland window and ignore the fullscreen env.
 COG_OPTS="--enable-media=true"
+# Extra flags for the chromium engine (KIOSK_ENGINE=chromium; see kiosk-launch).
+CHROMIUM_OPTS=""

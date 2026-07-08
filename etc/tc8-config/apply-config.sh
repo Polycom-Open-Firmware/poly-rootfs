@@ -138,15 +138,15 @@ apply_profile() {
 			systemctl enable kiosk.service >/dev/null 2>&1 || true
 			rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf 2>/dev/null
 			log "profile=kiosk (fullscreen web kiosk)" ;;
-		dev)
-			# Console + SSH, no kiosk grab. Autologin root on tty1 for a
-			# hands-on console; ssh is already baked-enabled for provisioning.
+		none|dev)
+			# No application: boot to a console, nothing else runs. (dev is a
+			# legacy alias.) Root autologin on tty1; ssh is baked-enabled.
 			systemctl set-default multi-user.target >/dev/null 2>&1
 			systemctl enable ssh.service >/dev/null 2>&1 || systemctl enable ssh >/dev/null 2>&1 || true
 			install -d /etc/systemd/system/getty@tty1.service.d
 			printf '[Service]\nExecStart=\nExecStart=-/sbin/agetty --autologin root --noclear %%I $TERM\n' \
 				> /etc/systemd/system/getty@tty1.service.d/autologin.conf
-			log "profile=dev (console + ssh, no kiosk lock)" ;;
+			log "profile=none (console; nothing else runs)" ;;
 		smart-speaker)
 			# Voice role. Its app ships in poly-<device>-profile-smart-speaker;
 			# enable that service if it is baked in, otherwise leave a serviceable
@@ -168,7 +168,7 @@ while IFS= read -r line || [ -n "$line" ]; do
 	key=${line%%=*}; val=${line#*=}
 	case "$key" in
 		PROFILE) profile=$val ;;
-		KIOSK_URL|KIOSK_URL_FALLBACK|COG_OPTS)
+		KIOSK_URL|KIOSK_URL_FALLBACK|COG_OPTS|KIOSK_ENGINE)
 			set_kv "$KIOSK" "$key" "$val"; log "set $key" ;;
 		DEVICE_NAME)
 			printf '%s\n' "$val" > /etc/hostname

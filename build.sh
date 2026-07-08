@@ -223,9 +223,15 @@ for prof in "${PLIST[@]}"; do
     # the profile chroot a real one so its apt can resolve the archive.
     rm -f "$PTREE/etc/resolv.conf"
     printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > "$PTREE/etc/resolv.conf"
-    echo "==> profile $prof: apt install poly-$DEVICE-profile-$prof"
+    # Applications are the board-agnostic poly-app-<id> metapackages; the
+    # per-board poly-<device>-profile-<name> is the legacy fallback kept
+    # during the transition.
+    echo "==> profile $prof: apt install poly-app-$prof (fallback poly-$DEVICE-profile-$prof)"
     chroot "$PTREE" sh -c "apt-get update && \
-        DEBIAN_FRONTEND=noninteractive apt-get install -y poly-$DEVICE-profile-$prof && \
+        { DEBIAN_FRONTEND=noninteractive apt-get install -y poly-app-$prof \
+            && echo '==> installed poly-app-$prof'; } || \
+        { DEBIAN_FRONTEND=noninteractive apt-get install -y poly-$DEVICE-profile-$prof \
+            && echo '==> installed poly-$DEVICE-profile-$prof (legacy fallback)'; } && \
         apt-get clean && rm -rf /var/lib/apt/lists/*"
     echo "TC8_PROFILE=\"$prof\"" >> "$PTREE/etc/tc8-version"
     umount -lf "$PTREE/dev" "$PTREE/sys" "$PTREE/proc" 2>/dev/null || true

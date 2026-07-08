@@ -1,12 +1,15 @@
 # poly-rootfs
 
-Builds the slim Debian bookworm arm64 kiosk rootfs for the
-**Polycom TC8** panel (i.MX 8M Mini).
+Builds the slim Debian bookworm arm64 kiosk rootfs for the **Polycom
+panels** — one builder for both boards (same i.MX 8M Mini SoC):
+`--device=tc8` (default) or `--device=c60` picks the board's profile
+metapackage (see [Device-role profiles](#device-role-profiles)).
 
-This repo only produces the rootfs.  The kernel comes
-from `poly-kernel-patches`; the flashable `boot.img`/`dtbo.img`/
-`vbmeta.img` artifacts are assembled by `poly-firmware-build`, which also
-packs this rootfs into the sparse `rootfs.simg` flashed to `userdata`.
+This repo only produces the rootfs.  The kernel comes from
+`poly-kernel-patches`; the flashable boot artifacts are assembled by
+`poly-firmware-build`, which packs this rootfs per target — the sparse
+`rootfs.simg` flashed to `userdata` on the TC8, `rootfs.img.zst` for
+`system_a` on the C60.
 
 ## What this builds
 
@@ -90,7 +93,7 @@ reboot. Two escape hatches ship in this repo:
   by the provisioner, so root's home survives reboots *and* reflashes.
   The saved fake-hwclock timestamp is persisted there too.
 - **Maintenance mode** — `tc8-rw [--reboot]` sets a sticky flag on
-  facres (`/persist/.poly-rootfs-rw`); the next boot mounts the rootfs
+  facres (`/persist/.tc8-rootfs-rw`); the next boot mounts the rootfs
   direct-rw with **no** overlay, so `apt install` etc. are safe and
   permanent. `tc8-ro && reboot` reseals. `tc8-mode` reports the current
   and next-boot mode, and interactive logins get a banner while in
@@ -125,9 +128,10 @@ across slot swaps.  A small first-boot oneshot service in
   rotation. If you change either piece, re-run the orientation sweep
   with `smoke/orient.html`.
 - Shared SSH host keys (see above)
-- No NTP fallback if the network has no internet — boot clock is
-  whatever the kernel set; HTTPS in cog will fail until `timesyncd`
-  pulls time from `pool.ntp.org`
+- Offline clock is *roughly* right, not exact: with no NTP the boot
+  clock comes from the image build date (`fake-hwclock`) bumped
+  forward-only to the wizard's flash-time stamp (`CONFIG_TIME`) — good
+  enough for TLS; real time still needs `timesyncd` reaching NTP
 
 ## Licensing
 

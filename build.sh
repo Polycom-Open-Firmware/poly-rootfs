@@ -36,11 +36,13 @@ KEEP=0
 PROFILES="kiosk"
 DEFAULT_PROFILE="kiosk"
 DEVICE="tc8"   # poly-<device>-profile-<role>; override with --device (M6: tc8|c60)
+EXTRA_PKGS=""  # comma-separated extra packages baked into every profile clone (--extra-pkgs=)
 for arg in "$@"; do
     case "$arg" in
         --keep) KEEP=1 ;;
         --profile=*) PROFILES="${arg#--profile=}" ;;
         --device=*) DEVICE="${arg#--device=}" ;;
+        --extra-pkgs=*) EXTRA_PKGS="${arg#--extra-pkgs=}" ;;
         *) echo "unknown arg: $arg" >&2; exit 2 ;;
     esac
 done
@@ -233,6 +235,12 @@ for prof in "${PLIST[@]}"; do
         { DEBIAN_FRONTEND=noninteractive apt-get install -y poly-$DEVICE-profile-$prof \
             && echo '==> installed poly-$DEVICE-profile-$prof (legacy fallback)'; } && \
         apt-get clean && rm -rf /var/lib/apt/lists/*"
+    if [ -n "$EXTRA_PKGS" ]; then
+        echo "==> profile $prof: extra packages: $EXTRA_PKGS"
+        chroot "$PTREE" sh -c "apt-get update && \
+            DEBIAN_FRONTEND=noninteractive apt-get install -y $(echo "$EXTRA_PKGS" | tr ',' ' ') && \
+            apt-get clean && rm -rf /var/lib/apt/lists/*"
+    fi
     echo "TC8_PROFILE=\"$prof\"" >> "$PTREE/etc/tc8-version"
     umount -lf "$PTREE/dev" "$PTREE/sys" "$PTREE/proc" 2>/dev/null || true
     rm -f "$PTREE/usr/bin/qemu-aarch64-static"

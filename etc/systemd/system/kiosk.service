@@ -1,6 +1,6 @@
 [Unit]
-Description=TC8 fullscreen kiosk (cage + cog)
-After=systemd-user-sessions.service seatd.service kiosk-config.service
+Description=TC8 fullscreen kiosk (weston + browser)
+After=systemd-user-sessions.service seatd.service kiosk-config.service tc8-persist-root.service
 Wants=seatd.service kiosk-config.service
 ConditionPathExists=/dev/dri/card0
 
@@ -20,21 +20,9 @@ Environment=XDG_RUNTIME_DIR=/run/user/1000
 Environment=XDG_SEAT=seat0
 Environment=HOME=/home/kiosk
 Environment=XDG_SESSION_TYPE=wayland
-Environment=XDG_CACHE_HOME=/data/kiosk/cache
-Environment=XDG_DATA_HOME=/data/kiosk/share
-Environment=COG_PLATFORM_FDO_VIEW_FULLSCREEN=1
-# wlroots picks /dev/dri/card0 by default which on i.MX 8M Mini is the
-# etnaviv GPU node (no connectors). card1 is the mxsfb display with our
-# DSI panel — point wlroots at it.
-Environment=WLR_DRM_DEVICES=/dev/dri/card1
-ExecStartPre=/bin/sh -c "mountpoint -q /data || mount /dev/mmcblk2p15 /data || true"
-ExecStartPre=/bin/sh -c "install -d -o kiosk -g kiosk -m 0700 /run/user/1000 /data/kiosk/cache /data/kiosk/share || true"
-# 1× `-r` = wlroots WL_OUTPUT_TRANSFORM_90 (90 CCW) — the pure rotation that
-# lands content user-facing on the TC8 panel mount, paired with rotation=<90>
-# in the panel DT + of_drm_get_panel_orientation (kernel-patches 0001/2/6). It
-# matches the fbcon boot logo (fbcon=rotate:3 = 270 CW = 90 CCW). The earlier
-# FLIPPED_270 (7× -r) rendered 180-rotated + horizontally mirrored. A value in
-# 0-3 is reachable by stock cage (no source rebuild needed).
+Environment=XDG_CACHE_HOME=/persist/kiosk/cache
+Environment=XDG_DATA_HOME=/persist/kiosk/share
+ExecStartPre=+/bin/sh -c "install -d -o kiosk -g kiosk -m 0700 /run/user/1000 /persist/kiosk/cache /persist/kiosk/share || true"
 ExecStart=/usr/local/bin/kiosk-launch
 Restart=always
 RestartSec=3

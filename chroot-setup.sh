@@ -345,7 +345,8 @@ IPMasquerade=no
 
 [DHCPServer]
 PoolOffset=2
-PoolSize=4
+PoolSize=1
+EmitRouter=no
 EmitDNS=no
 EmitNTP=no
 NW

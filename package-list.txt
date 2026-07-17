@@ -20,6 +20,7 @@ wpasupplicant
 
 # wayland kiosk: compositor + browser
 cage
+weston
 cog
 libwpebackend-fdo-1.0-1
 libwpewebkit-1.1-0

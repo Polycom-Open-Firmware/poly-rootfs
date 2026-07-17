@@ -14,6 +14,7 @@
   #big { position:fixed; top:50%; left:0; right:0; transform:translateY(-50%);
     text-align:center; color:#2a2f38; font-size:7vw; font-weight:700; pointer-events:none; }
   .k { color:#9aa4b2; }
+  #dev { font-size:12px; word-break:break-all; margin-top:4px; }
 </style>
 </head>
 <body>
@@ -23,9 +24,21 @@
   <div><span class="k">touches:</span> <b id="count">0</b>
        &nbsp; <span class="k">active:</span> <b id="active">0</b></div>
   <div><span class="k">last:</span> <b id="last">—</b></div>
+  <div><span class="k">engine:</span> <b id="engine">detecting…</b></div>
   <div class="k" id="dev">pointer/touch events</div>
 </div>
 <script>
+// Report the browser engine this kiosk is running under. Our two kiosk engines
+// are Chromium (UA carries "Chrome/<ver>") and WebKit/cog (WPEWebKit — UA carries
+// "AppleWebKit" but no "Chrome/"); print the parsed engine plus the raw UA.
+(function(){
+  const ua = navigator.userAgent, m = ua.match(/Chrome\/(\d+[\d.]*)/);
+  let engine;
+  if (m) engine = "Chromium " + m[1];
+  else { const w = ua.match(/AppleWebKit\/(\d+[\d.]*)/); engine = w ? "WebKit (cog) " + w[1] : "unknown"; }
+  document.getElementById("engine").textContent = engine;
+  document.getElementById("dev").textContent = ua;
+})();
 const c = document.getElementById("c"), ctx = c.getContext("2d");
 const elCount = document.getElementById("count"), elActive = document.getElementById("active"),
       elLast = document.getElementById("last");

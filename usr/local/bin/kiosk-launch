@@ -1,26 +1,46 @@
 #!/bin/sh
-# kiosk-launch — start the kiosk compositor + browser engine. Invoked by
-# kiosk.service; environment comes from its EnvironmentFile
+# kiosk-launch — start the weston compositor and the selected browser engine.
+# Invoked by kiosk.service; environment comes from its EnvironmentFile
 # (/etc/default/tc8-kiosk): KIOSK_URL, KIOSK_ENGINE, COG_OPTS, CHROMIUM_OPTS.
 #
+# Weston (kiosk-shell) is the compositor — chosen over cage because it is the
+# reference Wayland implementation and, unlike the cage in Debian bookworm,
+# emits wl_touch.frame, which strict clients (chromium, GTK, Qt) require for
+# touch input. Weston runs as our background child; the browser then connects
+# as a client and kiosk-shell fullscreens it.
+#
 # KIOSK_ENGINE selects the browser:
-#   webkit (default)  cog under cage — lightweight, always present
-#   chromium          /usr/bin/chromium under cage (poly-app-chromium);
-#                     falls back to cog with a warning if the binary is
-#                     absent — the kiosk must never fail to start because
-#                     an engine package isn't baked.
-
+#   webkit (default)  cog — lightweight, always present
+#   chromium          /usr/bin/chromium (poly-app-chromium); falls back to cog
+#                     with a warning if the binary is absent, so the kiosk never
+#                     fails to start because an engine package isn't baked.
+. /etc/default/tc8-kiosk 2>/dev/null || true
 URL="${KIOSK_URL:-https://duckduckgo.com/}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}"
+WD=wayland-1
+
+# Bring up weston on the mxsfb scanout node. weston auto-selects the DRM card
+# that has connectors (card1); card0 is the connector-less etnaviv render GPU.
+/usr/bin/weston --config=/etc/tc8-kiosk/weston.ini --socket="$WD" \
+	--log="$XDG_RUNTIME_DIR/weston.log" &
+weston_pid=$!
+
+# Wait for weston's wayland socket before launching the client.
+i=0
+while [ ! -S "$XDG_RUNTIME_DIR/$WD" ]; do
+	kill -0 "$weston_pid" 2>/dev/null || { echo "kiosk: weston exited before its socket appeared" >&2; exit 1; }
+	i=$((i + 1)); [ "$i" -ge 150 ] && { echo "kiosk: timed out waiting for weston socket" >&2; exit 1; }
+	sleep 0.1
+done
+export WAYLAND_DISPLAY="$WD"
 
 case "${KIOSK_ENGINE:-webkit}" in
 chromium)
 	if [ -x /usr/bin/chromium ]; then
-		exec /usr/bin/cage -r -s -- /usr/bin/chromium \
-			--kiosk --no-first-run --disable-infobars \
+		exec /usr/bin/chromium --kiosk --no-first-run --disable-infobars --disk-cache-size=104857600 \
 			--ozone-platform=wayland ${CHROMIUM_OPTS} "$URL"
 	fi
 	echo "kiosk: KIOSK_ENGINE=chromium but /usr/bin/chromium is missing — falling back to cog" >&2
 	;;
 esac
-
-exec /usr/bin/cage -r -s -- /usr/bin/cog ${COG_OPTS} "$URL"
+exec /usr/bin/cog ${COG_OPTS} "$URL"

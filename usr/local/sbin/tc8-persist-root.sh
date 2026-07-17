@@ -32,6 +32,13 @@ if ! mountpoint -q "$MNT"; then
 	mount -o rw,noatime "$DEV" "$MNT" || { log "failed to mount facres"; exit 0; }
 fi
 
+# Purge stock Polycom Android app/bin staging the factory left on facres. These
+# are APK bundles for the Android OS we replaced -- inert on our Debian firmware
+# and ~600 MB of dead weight. Idempotent: wipes on first boot, no-op thereafter.
+for stale in app bin; do
+	[ -e "$MNT/$stale" ] && rm -rf "$MNT/$stale" && log "purged stock /persist/$stale"
+done
+
 install -d -m 0700 "$ROOT"
 if [ ! -e "$ROOT/.tc8-root-initialized" ]; then
 	if [ -d /root ]; then

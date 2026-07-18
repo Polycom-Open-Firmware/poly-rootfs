@@ -14,14 +14,14 @@ This repo only produces the rootfs.  The kernel comes from
 ## What this builds
 
 - `out/rootfs.tar.gz` — minbase Debian bookworm arm64 chroot, with
-  the kiosk service stack (cage + cog/WPE), Hantro VPU userspace,
-  baked SSH host keys, and our `/etc` overlay applied
+  the kiosk service stack (weston + cog/WPE), Hantro VPU userspace,
+  baked SSH host keys, and the `/etc` overlay applied
 
 ## Quick start
 
 ```bash
 sudo apt-get install debootstrap qemu-user-static binfmt-support \
-                     cpio gzip rsync
+                     gzip rsync
 sudo ./build.sh
 ```
 
@@ -34,24 +34,30 @@ build.sh            # host-side: debootstrap, chroot, overlay, tarball
 chroot-setup.sh     # runs inside the chroot: apt + cleanup + enable units
 package-list.txt    # one Debian package per line (comments OK)
 etc/                # files copied verbatim into the rootfs at the same path
+usr/                # ditto: kiosk-launch, the tc8-* sbin helpers,
+                    #   tc8-bootctl.c, the baked archive keyring
 out/                # build output (gitignored)
 ```
 
 ## What's installed
 
-`package-list.txt` (~34 packages) covers:
+`package-list.txt` (42 packages, one per line with per-package rationale)
+covers:
 
 - Boot/init: systemd, systemd-sysv, systemd-resolved, systemd-timesyncd,
-  udev, dbus, libnss-systemd
-- Networking: iproute2, iputils-ping, isc-dhcp-client, openssh-server
-- Wayland kiosk: cage compositor, cog launcher, WPE WebKit + libwpe-fdo,
-  xwayland (cage 0.1.4 hard-requires it)
+  udev, dbus, libnss-systemd, fake-hwclock
+- Networking: iproute2, iputils-ping, isc-dhcp-client, openssh-server,
+  wpasupplicant
+- Wayland kiosk: weston (the kiosk-shell compositor), cog launcher,
+  WPE WebKit + libwpe-fdo, plus cage and xwayland (in the package list
+  but not on the kiosk path; `weston.ini` sets `xwayland=false`)
 - GPU + input: seatd, libinput-bin, libegl1, libgles2, mesa-utils
 - Audio: alsa-utils
 - Hantro VPU: gstreamer1.0-{plugins-base,plugins-good,plugins-bad,libav},
   v4l-utils
-- Minimal utils: util-linux, psmisc, procps, less,
-  curl, ca-certificates, busybox-static
+- U-Boot env access from Linux: u-boot-tools, libubootenv-tool
+- Minimal utils: util-linux, e2fsprogs, psmisc, procps, less,
+  curl, ca-certificates, busybox-static, locales
 
 `--no-install-recommends` everywhere; `/usr/share/doc`, `/usr/share/man`,
 non-`en` locales stripped via `dpkg path-exclude`.  Final rootfs tarball
@@ -61,22 +67,24 @@ non-`en` locales stripped via `dpkg path-exclude`.  Final rootfs tarball
 
 Per-build defaults live in `etc/`:
 
-- `etc/default/tc8-kiosk` — `KIOSK_URL` and cage/cog options
-- `etc/systemd/network/lan.network` — DHCP on the DSA `lan` interface
+- `etc/default/tc8-kiosk` — `KIOSK_URL`, `KIOSK_ENGINE`, `COG_OPTS`,
+  `CHROMIUM_OPTS`
+- `etc/tc8-kiosk/weston.ini` — compositor config: kiosk-shell,
+  `xwayland=false`, output rotation via `transform=rotate-90`
 - `etc/systemd/system/{kiosk,kiosk-config,kiosk-vt}.service` —
-  cage-on-tty7 service + a oneshot that overrides config from
-  `/data/poly-kiosk/config` if present + an explicit `chvt 7` helper
-- the `/data` mount (`/dev/mmcblk2p15`, Android's userdata partition, for
-  cross-slot persistence) is inlined in `kiosk.service` as an
-  `ExecStartPre` (`mountpoint -q /data || mount /dev/mmcblk2p15 /data`) —
-  there's no separate mount unit
+  kiosk-on-tty7 service (runs `kiosk-launch`, which starts weston with
+  kiosk-shell and then the browser selected by `KIOSK_ENGINE`: cog by
+  default, chromium when installed) + a oneshot that overrides config
+  from `/data/poly-kiosk/config` if present + an explicit `chvt 7`
+  helper; `kiosk-config.service` orders itself after the `/data` mount
+  (`After=data.mount` / `Wants=data.mount`)
 - `etc/udev/rules.d/{50-drm,70-seat}.rules` — gives the `kiosk` user
   group access to `/dev/dri/*` and seat-tags `/dev/input/event*` so
   libinput finds the Goodix touchscreen
 - `etc/environment.d/99-vpu.conf` — biases GStreamer toward the
   v4l2 stateless decoders (Hantro G1/G2) over libav
 
-Per-device overrides are intended to live on `/data/poly-kiosk/config`
+Per-device overrides live on `/data/poly-kiosk/config`
 (populated separately during deployment); `kiosk-config.service` reads
 that at boot if present.
 
@@ -92,10 +100,10 @@ reboot. Two escape hatches ship in this repo:
   and binds `/persist/tc8-root` onto `/root`. facres is never touched
   by the provisioner, so root's home survives reboots *and* reflashes.
   The saved fake-hwclock timestamp is persisted there too.
-- **Maintenance mode** — `tc8-rw [--reboot]` (alias `poly-open`) sets a sticky flag on
+- **Maintenance mode** — `tc8-rw [--reboot]` sets a sticky flag on
   facres (`/persist/.tc8-rootfs-rw`); the next boot mounts the rootfs
   direct-rw with **no** overlay, so `apt install` etc. are safe and
-  permanent. `tc8-ro && reboot` (alias `poly-pin`) reseals. `tc8-mode` reports the current
+  permanent. `tc8-ro && reboot` reseals. `tc8-mode` reports the current
   and next-boot mode, and interactive logins get a banner while in
   maintenance mode (`etc/profile.d/tc8-mode.sh`).
 
@@ -116,17 +124,17 @@ machines you'll get different keys; that's intentional.
 For per-panel keys (rather than per-build), generate them on first
 boot and stash under `/data/poly-kiosk/ssh-host-keys/` — the `/data`
 partition is shared between A/B slots, so generated keys persist
-across slot swaps.  A small first-boot oneshot service in
-`etc/systemd/system/` would do this; not currently shipped.
+across slot swaps.
 
 ## Known limitations
 
 - No automatic touch calibration; final viewing rotation is the sum of
   the kernel cmdline `video=DSI-1:rotate=270` (panel mounted 270° from
-  native) and cage's `-r` (90° CCW in the compositor). wlroots
-  auto-maps the single-output touch transform off the wayland output
-  rotation. If you change either piece, re-run the orientation sweep
-  with `smoke/orient.html`.
+  native) and weston's output rotation (`transform=rotate-90` in
+  `etc/tc8-kiosk/weston.ini`). The compositor maps the single-output
+  touch transform off the wayland output rotation. If you change either
+  piece, re-run the orientation sweep with `smoke/orient.html` in
+  `poly-firmware-build`.
 - Shared SSH host keys (see above)
 - Offline clock is *roughly* right, not exact: with no NTP the boot
   clock comes from the image build date (`fake-hwclock`) bumped
@@ -145,17 +153,18 @@ here.
 
 `sudo ./build.sh --profile=<name>[,<name>…] --device=<tc8|c60>` (defaults:
 profile `kiosk`, device `tc8`) builds one debootstrap base and then, per
-profile, an isolated clone with the `poly-<device>-profile-<name>`
+profile, an isolated clone with the board-agnostic `poly-app-<name>`
 metapackage installed from the
-[OpenPolycom archive](https://github.com/Polycom-Open-Firmware/apt) —
-emitted as `out/rootfs-<name>.tar.gz` with `TC8_PROFILE` stamped in
-`/etc/tc8-version`. `--device` picks the per-board metapackage
-(`poly-tc8-profile-kiosk` vs `poly-c60-profile-kiosk`); the composer
-(`poly-firmware-build`) passes it from `--target`. `bare` = the untouched
-base; plain `rootfs.tar.gz` always aliases the default profile. The archive
-keyring + sources.list are baked into the base
-(`etc/apt/sources.list.d/openpolycom.list`), so both image builds and
+[OpenPolycom archive](https://github.com/Polycom-Open-Firmware/apt),
+falling back to the legacy per-board `poly-<device>-profile-<name>` when
+no `poly-app-<name>` exists — emitted as `out/rootfs-<name>.tar.gz` with
+`TC8_PROFILE` stamped in `/etc/tc8-version`. `--device` picks the
+fallback metapackage (`poly-tc8-profile-kiosk` vs
+`poly-c60-profile-kiosk`); the composer (`poly-firmware-build`) passes it
+from `--target`. `bare` = the untouched base; plain `rootfs.tar.gz`
+aliases the default profile when that profile is built, otherwise it
+packs the bare base. The archive keyring + sources.list are baked into
+the base (`etc/apt/sources.list.d/poly.list`), so both image builds and
 on-device `tc8-rw` maintenance installs resolve `poly-*` packages with no
 setup. The device role at runtime is set from the config blob's `PROFILE`
-key by `apply-config` (kiosk / dev / smart-speaker). Big picture:
-`polycom_dev/PROFILES-PLAN.md`.
+key by `apply-config` (kiosk / dev / smart-speaker).

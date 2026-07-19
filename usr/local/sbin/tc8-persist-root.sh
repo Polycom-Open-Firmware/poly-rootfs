@@ -39,6 +39,10 @@ for stale in app bin; do
 	[ -e "$MNT/$stale" ] && rm -rf "$MNT/$stale" && log "purged stock /persist/$stale"
 done
 
+# Kodi's persistent home (KIOSK_ENGINE=kodi runs as the kiosk user, uid 1000):
+# library/settings survive reboots and reflashes alongside /root.
+install -d -m 0755 -o 1000 -g 1000 "$MNT/kodi-home"
+
 install -d -m 0700 "$ROOT"
 if [ ! -e "$ROOT/.tc8-root-initialized" ]; then
 	if [ -d /root ]; then

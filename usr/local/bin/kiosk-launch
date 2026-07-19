@@ -9,11 +9,13 @@
 # touch input. Weston runs as our background child; the browser then connects
 # as a client and kiosk-shell fullscreens it.
 #
-# KIOSK_ENGINE selects the browser:
+# KIOSK_ENGINE selects the client:
 #   webkit (default)  cog — lightweight, always present
 #   chromium          /usr/bin/chromium (poly-app-chromium); falls back to cog
 #                     with a warning if the binary is absent, so the kiosk never
 #                     fails to start because an engine package isn't baked.
+#   kodi              /usr/bin/kodi (poly-app-kodi) as a Wayland client — the
+#                     media-player role. Same fallback rule.
 . /etc/default/tc8-kiosk 2>/dev/null || true
 URL="${KIOSK_URL:-https://duckduckgo.com/}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}"
@@ -35,6 +37,20 @@ done
 export WAYLAND_DISPLAY="$WD"
 
 case "${KIOSK_ENGINE:-webkit}" in
+kodi)
+	if [ -x /usr/bin/kodi ]; then
+		# Persistent Kodi home, first writable wins: facres (TC8 — prepared
+		# kiosk-owned by tc8-persist-root.sh; survives reboots + reflashes),
+		# /var/lib (C60 direct-rw root), runtime dir (ephemeral last resort).
+		for h in /persist/kodi-home /var/lib/kodi-home "$XDG_RUNTIME_DIR/kodi-home"; do
+			mkdir -p "$h" 2>/dev/null || true
+			[ -w "$h" ] && { HOME=$h; break; }
+		done
+		export HOME
+		exec /usr/bin/kodi --windowing=wayland --standalone -fs
+	fi
+	echo "kiosk: KIOSK_ENGINE=kodi but /usr/bin/kodi is missing — falling back to cog" >&2
+	;;
 chromium)
 	if [ -x /usr/bin/chromium ]; then
 		exec /usr/bin/chromium --kiosk --no-first-run --disable-infobars --disk-cache-size=104857600 \

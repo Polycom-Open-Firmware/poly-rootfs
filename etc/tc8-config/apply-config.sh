@@ -136,6 +136,12 @@ apply_profile() {
 		kiosk)
 			systemctl set-default graphical.target >/dev/null 2>&1
 			systemctl enable kiosk.service >/dev/null 2>&1 || true
+			# The kodi engine belongs to the media-player role; a kiosk pick
+			# reverts it unless this blob explicitly chose an engine (the
+			# key loop runs first and sets engine_in_blob).
+			if [ -z "${engine_in_blob+x}" ] && grep -q '^KIOSK_ENGINE=kodi' "$KIOSK" 2>/dev/null; then
+				set_kv "$KIOSK" KIOSK_ENGINE webkit
+			fi
 			rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf 2>/dev/null
 			log "profile=kiosk (fullscreen web kiosk)" ;;
 		none|dev)
@@ -158,6 +164,15 @@ apply_profile() {
 			else
 				log "profile=smart-speaker selected, but its app package isn't installed — booting to console"
 			fi ;;
+		media-player)
+			# Kodi as the kiosk client (poly-app-kodi via the per-board
+			# profile package): the same weston stack, KIOSK_ENGINE=kodi.
+			# kiosk-launch falls back to cog if kodi isn't baked.
+			systemctl set-default graphical.target >/dev/null 2>&1
+			systemctl enable kiosk.service >/dev/null 2>&1 || true
+			set_kv "$KIOSK" KIOSK_ENGINE kodi
+			rm -f /etc/systemd/system/getty@tty1.service.d/autologin.conf 2>/dev/null
+			log "profile=media-player (Kodi via KIOSK_ENGINE)" ;;
 		*)  log "unknown PROFILE '$role' — leaving the kiosk default"
 		    systemctl set-default graphical.target >/dev/null 2>&1 ;;
 	esac
@@ -168,7 +183,12 @@ while IFS= read -r line || [ -n "$line" ]; do
 	key=${line%%=*}; val=${line#*=}
 	case "$key" in
 		PROFILE) profile=$val ;;
-		KIOSK_URL|KIOSK_URL_FALLBACK|COG_OPTS|KIOSK_ENGINE)
+		KIOSK_ENGINE)
+			# Tracked so a PROFILE=kiosk in the same blob won't revert an
+			# explicit engine choice (apply_profile runs after this loop).
+			engine_in_blob=1
+			set_kv "$KIOSK" "$key" "$val"; log "set $key" ;;
+		KIOSK_URL|KIOSK_URL_FALLBACK|COG_OPTS)
 			set_kv "$KIOSK" "$key" "$val"; log "set $key" ;;
 		DEVICE_NAME)
 			printf '%s\n' "$val" > /etc/hostname

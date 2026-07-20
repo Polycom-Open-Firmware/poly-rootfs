@@ -164,6 +164,10 @@ chmod 0755 /etc/tc8-config/update-bootloader.sh 2>/dev/null || true
 systemctl enable tc8-update-bootloader.service
 systemctl enable kiosk-vt.service
 systemctl enable kiosk.service
+# photo-frame autostart: no-op unless the media-player role sets
+# MEDIA_MODE=photoframe (see /etc/default/poly-media)
+chmod 0755 /usr/local/bin/poly-photoframe 2>/dev/null || true
+systemctl enable poly-photoframe.service
 # USB CDC ACM gadget: end-user console access via the panel's USB data port.
 # Plug the data port into a host -> /dev/ttyACM0 with a getty waiting.
 systemctl enable tc8-usb-gadget.service
@@ -264,8 +268,10 @@ cat > /etc/umtprd/umtprd.conf <<'UMTP'
 # unparseable — umtprd ran on defaults: class 0x00, no storage.)
 
 # Export the PERSISTENT /root (facres-backed, survives reflashes), not the
-# whole filesystem.
+# whole filesystem. /persist/media is the media-player role's drag-and-drop
+# library (same facres backing; Kodi's "Local media" source).
 storage "/root" "Root home (persistent)" "rw"
+storage "/persist/media" "Media" "rw"
 
 manufacturer "Polycom"
 product "TC8 Panel Storage"

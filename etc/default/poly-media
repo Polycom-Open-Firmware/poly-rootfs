@@ -1,0 +1,7 @@
+# Media-player role settings, written by the config blob (apply-config).
+# MEDIA_MODE: full (the whole Kodi UI) | photoframe (auto-start a fullscreen
+#             slideshow of the media; see poly-photoframe.service)
+# MEDIA_SOURCE: optional network media source Kodi is pointed at
+#             (e.g. smb://server/share); local /persist/media always present.
+MEDIA_MODE=full
+MEDIA_SOURCE=

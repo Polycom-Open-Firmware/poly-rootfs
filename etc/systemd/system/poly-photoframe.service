@@ -1,0 +1,11 @@
+[Unit]
+Description=Photo-frame autostart (media-player role, MEDIA_MODE=photoframe)
+After=kiosk.service
+ConditionPathExists=/etc/default/poly-media
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/poly-photoframe
+
+[Install]
+WantedBy=graphical.target

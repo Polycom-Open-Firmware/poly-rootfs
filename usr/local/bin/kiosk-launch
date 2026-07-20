@@ -47,6 +47,27 @@ kodi)
 			[ -w "$h" ] && { HOME=$h; break; }
 		done
 		export HOME
+		# Seed per-panel Kodi config (idempotent; the home is ours):
+		# web server on (remote control + the photo-frame autostart), and
+		# media sources from /etc/default/poly-media (MEDIA_SOURCE) plus
+		# the always-present local /persist/media.
+		. /etc/default/poly-media 2>/dev/null || true
+		UD="$HOME/.kodi/userdata"; mkdir -p "$UD"
+		GS="$UD/guisettings.xml"
+		[ -f "$GS" ] || printf '<settings version="2">\n    <setting id="services.webserver">true</setting>\n    <setting id="services.webserverauthentication">false</setting>\n</settings>\n' > "$GS"
+		grep -q 'id="services.webserver"' "$GS" || sed -i 's|</settings>|    <setting id="services.webserver">true</setting>\n    <setting id="services.webserverauthentication">false</setting>\n</settings>|' "$GS"
+		SRC="$UD/sources.xml"
+		if [ ! -f "$SRC" ] || grep -q "poly-media-setup" "$SRC"; then
+			{
+				printf '<!-- poly-media-setup: generated from /etc/default/poly-media; edits are overwritten -->\n<sources>\n'
+				for sec in video music pictures files; do
+					printf '    <%s>\n        <source><name>Local media</name><path pathversion="1">/persist/media/</path><allowsharing>true</allowsharing></source>\n' "$sec"
+					[ -n "${MEDIA_SOURCE:-}" ] && printf '        <source><name>Media server</name><path pathversion="1">%s</path><allowsharing>true</allowsharing></source>\n' "$MEDIA_SOURCE"
+					printf '    </%s>\n' "$sec"
+				done
+				printf '</sources>\n'
+			} > "$SRC"
+		fi
 		exec /usr/bin/kodi --windowing=wayland --standalone -fs
 	fi
 	echo "kiosk: KIOSK_ENGINE=kodi but /usr/bin/kodi is missing — falling back to cog" >&2

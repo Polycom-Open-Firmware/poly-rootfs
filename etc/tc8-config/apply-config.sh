@@ -124,8 +124,9 @@ apply_profile() {
 	# Device ROLE — the wizard's Application picker writes PROFILE=<id>. The role
 	# IS the systemd default target: kiosk boots graphical.target (kiosk.service is
 	# WantedBy it); dev / smart-speaker boot multi-user.target (console + ssh, no
-	# kiosk lock). The role apps are baked (poly-<device>-profile-<id>); nothing is
-	# fetched here. Persisted via CFG_PATHS so a sealed reboot keeps the role.
+	# kiosk lock). The role apps are baked (poly-app-<id> / per-board profile);
+	# nothing is fetched here. On sealed boots the blob applies pre-seal to the
+	# real filesystem, so the role persists across reboots.
 	# Only act when the blob carried a PROFILE key. A config-only push (wifi,
 	# passwords, …) must NOT reset an existing role to the kiosk default.
 	[ -n "${profile+x}" ] || return 0
@@ -190,6 +191,14 @@ while IFS= read -r line || [ -n "$line" ]; do
 			set_kv "$KIOSK" "$key" "$val"; log "set $key" ;;
 		KIOSK_URL|KIOSK_URL_FALLBACK|COG_OPTS)
 			set_kv "$KIOSK" "$key" "$val"; log "set $key" ;;
+		MEDIA_MODE|MEDIA_SOURCE)
+			# Media-player role settings. /etc/default/poly-media is
+			# dot-sourced by kiosk-launch (Kodi source seeding) and
+			# poly-photoframe — quote the value so paths with spaces
+			# survive sourcing; strip embedded quotes.
+			val=$(printf '%s' "$val" | tr -d '"')
+			set_kv /etc/default/poly-media "$key" "\"$val\""
+			log "set $key" ;;
 		DEVICE_NAME)
 			printf '%s\n' "$val" > /etc/hostname
 			hostname "$val" 2>/dev/null || true

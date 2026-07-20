@@ -1,0 +1,26 @@
+#!/bin/sh
+# poly-photoframe — in photoframe mode, auto-start a fullscreen slideshow
+# once Kodi's JSON-RPC comes up. The media-player role's light-UI mode:
+# the panel boots straight into pictures, no interaction needed.
+# MEDIA_MODE/MEDIA_SOURCE come from /etc/default/poly-media (config blob).
+set -eu
+. /etc/default/poly-media 2>/dev/null || true
+[ "${MEDIA_MODE:-full}" = "photoframe" ] || exit 0
+
+RPC=http://127.0.0.1:8080/jsonrpc
+DIR=${MEDIA_SOURCE:-/persist/media}
+
+# Wait for Kodi's web server (kiosk.service starts in parallel; first boot
+# includes Kodi's own init).
+i=0
+until curl -sf -m 2 -X POST "$RPC" -H 'Content-Type: application/json' \
+		-d '{"jsonrpc":"2.0","id":1,"method":"JSONRPC.Ping"}' >/dev/null 2>&1; do
+	i=$((i + 1)); [ "$i" -ge 60 ] && { echo "poly-photoframe: Kodi JSON-RPC not up after 120s" >&2; exit 1; }
+	sleep 2
+done
+
+curl -sf -m 5 -X POST "$RPC" -H 'Content-Type: application/json' \
+	-d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"Player.Open\",\"params\":{\"item\":{\"recursive\":true,\"path\":\"$DIR\"}}}" >/dev/null
+curl -sf -m 5 -X POST "$RPC" -H 'Content-Type: application/json' \
+	-d '{"jsonrpc":"2.0","id":1,"method":"Player.SetRepeat","params":{"playerid":2,"repeat":"all"}}' >/dev/null 2>&1 || true
+echo "poly-photoframe: slideshow started from $DIR"

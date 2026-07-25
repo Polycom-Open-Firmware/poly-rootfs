@@ -314,6 +314,11 @@ ConditionPathExists=/dev/ffs-mtp/ep0
 
 [Service]
 Type=simple
+# The configured MTP storage paths must exist or umtprd exits — and because
+# the composite gadget is all-or-nothing, a failing umtprd holds ACM and NCM
+# hostage too. /persist/media is a mount on the TC8 (facres) and a plain
+# rootfs dir on boards without that partition; either way MTP has a target.
+ExecStartPre=/bin/mkdir -p /root /persist/media
 # NB: no -c flag — umtprd 1.8.1 has no such option (it errors out and the
 # UDC never binds); it reads /etc/umtprd/umtprd.conf, our path, by default.
 ExecStart=/usr/bin/umtprd

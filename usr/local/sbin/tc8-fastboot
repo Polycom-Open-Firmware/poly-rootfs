@@ -1,24 +1,41 @@
 #!/bin/sh
-# tc8-fastboot — reboot into the bootloader's fastboot gadget from a booted
-# system, without touch or power-cycle access. Writes the one-shot AOSP
-# bootloader-message command ("bootonce-bootloader", misc offset 0); the
-# bootloader consumes it — clears the field, then starts `fastboot usb 0` —
-# so the next power cycle boots normally again. The provisioner talks to
-# the gadget exactly as it does after the 4-finger gesture.
+# tc8-fastboot — reboot into a bootloader fastboot gadget from a booted
+# system, without touch or power-cycle access.
 #
-#   tc8-fastboot             # blank the panel, reboot into fastboot
+#   tc8-fastboot             # stage-2 fastboot: the panel shows the fastboot
+#                            # icon and the provisioner sees the stage-2 gadget
+#   tc8-fastboot --stock     # the factory bootloader's fastboot: works even
+#                            # with a broken stage-2; the panel stays dark
 #   tc8-fastboot --no-blank  # keep the display as-is (debugging)
 #
-# The panel is blanked first: fastboot mode does not drive the display, so
-# whatever was last drawn would otherwise stay latched on the panel the
-# whole time the device sits in fastboot.
+# Default: writes a one-shot request into stage-2's boot-selector sector
+# (BSEL, mode 4; the sticky boot selection is preserved in byte 5). The next
+# boot chainloads stage-2, which consumes the request, draws the fastboot
+# icon, and starts its gadget — the following power cycle boots normally.
+#
+# --stock: writes the AOSP bootonce-bootloader command to `misc` instead.
+# The factory stage-1 consumes that itself and starts its own fastboot —
+# stage-2 never runs, the display is never lit, and the gadget reports the
+# factory bootloader's identity. It does not depend on stage-2 at all:
+# the recovery path when stage-2 breaks.
 
 set -eu
 
+EMMC=/dev/mmcblk2
+BSEL_LBA=19456          # 0x4C00 — stage-2's boot-selector sticky sector
 MISC=/dev/disk/by-partlabel/misc
-[ -b "$MISC" ] || { echo "tc8-fastboot: no misc partition" >&2; exit 1; }
 
-if [ "${1:-}" != "--no-blank" ]; then
+blank=1
+target=stage2
+for a in "$@"; do
+	case "$a" in
+	--stock) target=stock ;;
+	--no-blank) blank=0 ;;
+	*) echo "usage: tc8-fastboot [--stock] [--no-blank]" >&2; exit 2 ;;
+	esac
+done
+
+if [ "$blank" = 1 ]; then
 	# Stop the compositor, paint the framebuffer black, power the panel
 	# down. All best-effort — a failed blank must not block the reboot.
 	systemctl stop kiosk.service 2>/dev/null || true
@@ -28,10 +45,25 @@ if [ "${1:-}" != "--no-blank" ]; then
 	fi
 fi
 
-# NUL the 32-byte command field, then write the command — no remnants of
-# any longer previous command.
-dd if=/dev/zero of="$MISC" bs=32 count=1 conv=notrunc 2>/dev/null
-printf 'bootonce-bootloader' | dd of="$MISC" conv=notrunc 2>/dev/null
-sync
-echo "tc8-fastboot: rebooting into fastboot — power-cycle to boot normally."
+if [ "$target" = stock ]; then
+	[ -b "$MISC" ] || { echo "tc8-fastboot: no misc partition" >&2; exit 1; }
+	# NUL the 32-byte command field, then write the command — no remnants
+	# of any longer previous command.
+	dd if=/dev/zero of="$MISC" bs=32 count=1 conv=notrunc 2>/dev/null
+	printf 'bootonce-bootloader' | dd of="$MISC" conv=notrunc 2>/dev/null
+	sync
+	echo "tc8-fastboot: rebooting into the FACTORY bootloader's fastboot (panel stays dark; power-cycle to boot normally)."
+else
+	[ -b "$EMMC" ] || { echo "tc8-fastboot: no $EMMC" >&2; exit 1; }
+	# Read-modify-write the BSEL sector, preserving the sticky selection.
+	sec=$(dd if=$EMMC bs=512 skip=$BSEL_LBA count=1 2>/dev/null | od -An -tu1 -N6 | tr -s " ")
+	magic=$(echo "$sec" | cut -d" " -f2-5)
+	prev=$(echo "$sec" | cut -d" " -f6)
+	[ "$magic" = "66 83 69 76" ] || prev=0	# "BSEL" as decimal bytes
+	case "$prev" in 2|3) ;; *) prev=0 ;; esac
+	{ printf 'BSEL\004'; printf "\\$(printf '%03o' "$prev")"; head -c 506 /dev/zero; } \
+		| dd of=$EMMC bs=512 seek=$BSEL_LBA count=1 conv=notrunc,fsync 2>/dev/null
+	sync
+	echo "tc8-fastboot: rebooting into stage-2 fastboot (fastboot icon; power-cycle to boot normally)."
+fi
 exec systemctl reboot

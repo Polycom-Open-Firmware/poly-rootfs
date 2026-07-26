@@ -151,6 +151,11 @@ systemctl enable wipe-networkd-leases.service
 
 # Enable services.
 systemctl enable systemd-networkd
+# Wifi runs as wpa_supplicant@<iface>.service, the instance tc8-config enables
+# once it knows the interface name and has written that instance's config. The
+# generic wpa_supplicant.service would claim the same radio in D-Bus mode with
+# no config of its own, so it ships off.
+systemctl disable wpa_supplicant.service 2>/dev/null || true
 systemctl enable systemd-resolved
 systemctl enable systemd-timesyncd
 systemctl enable seatd.service

@@ -17,6 +17,12 @@ iputils-ping
 isc-dhcp-client
 openssh-server
 wpasupplicant
+# wireless-regdb ships regulatory.db, which cfg80211 loads to apply the
+# country code tc8-config writes into the supplicant config; without it the
+# radio stays on the world-roaming domain. iw is the wifi diagnostic (scan
+# results, link state, regulatory domain in force).
+iw
+wireless-regdb
 
 # wayland kiosk: compositor + browser
 cage

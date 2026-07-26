@@ -1,0 +1,4 @@
+# Trio C60: the FT5x46 reports both axes inverted relative to the panel
+# scan (a 180-degree rotation). Scoped to the controller name, so boards
+# without it (the TC8's Goodix) are untouched.
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="generic ft5x06 (79)", ENV{LIBINPUT_CALIBRATION_MATRIX}="-1 0 1 0 -1 1"

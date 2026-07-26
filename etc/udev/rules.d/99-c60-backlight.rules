@@ -1,0 +1,3 @@
+# Trio C60: the rm67191 DSI backlight registers at brightness 12/255 — a
+# bring-up remnant, near-invisible. Set a sane default when it appears.
+ACTION=="add", SUBSYSTEM=="backlight", KERNEL=="32e10000.dsi.0", ATTR{brightness}="180"

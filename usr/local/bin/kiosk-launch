@@ -23,7 +23,16 @@ WD=wayland-1
 
 # Bring up weston on the mxsfb scanout node. weston auto-selects the DRM card
 # that has connectors (card1); card0 is the connector-less etnaviv render GPU.
-/usr/bin/weston --config=/etc/tc8-kiosk/weston.ini --socket="$WD" \
+# Per-board output orientation: the TC8 panel is mounted landscape
+# (transform=rotate-90), the Trio C60 portrait (transform=normal). The
+# shared config carries the TC8 value; rewrite from the running board's
+# device-tree model. --debug enables weston-screenshooter (the bench
+# screengrab instrument) — acceptable on a device that ships a root shell.
+case "$(cat /proc/device-tree/model 2>/dev/null)" in
+*"Trio C60"*) sed -i "s/^transform=.*/transform=normal/" /etc/tc8-kiosk/weston.ini ;;
+*)            sed -i "s/^transform=.*/transform=rotate-90/" /etc/tc8-kiosk/weston.ini ;;
+esac
+/usr/bin/weston --debug --config=/etc/tc8-kiosk/weston.ini --socket="$WD" \
 	--log="$XDG_RUNTIME_DIR/weston.log" &
 weston_pid=$!
 

@@ -5,3 +5,8 @@ KIOSK_URL=file:///etc/tc8-kiosk/touchtest.html
 COG_OPTS="--enable-media=true"
 # Extra flags for the chromium engine (KIOSK_ENGINE=chromium; see kiosk-launch).
 CHROMIUM_OPTS=""
+
+# Kodi's HTTP control interface (port 8080, no authentication, bound to every
+# interface). Off in shipped images; set to 1 on a bench panel to drive the UI
+# and capture screens remotely.
+KIOSK_DEBUG_RPC=0

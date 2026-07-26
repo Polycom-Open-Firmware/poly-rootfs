@@ -77,9 +77,16 @@ kodi)
 				sed -i "s|</settings>|    <setting id=\"$2\">$3</setting>\n</settings>|" "$1"
 			fi
 		}
-		# Web server on (remote control + the photo-frame autostart).
-		gs_set "$GS" services.webserver true
-		gs_set "$GS" services.webserverauthentication false
+		# Kodi's HTTP control interface is unauthenticated and binds every
+		# interface, so it stays off unless something needs it: the
+		# photo-frame role drives the slideshow through it, and a bench
+		# panel opts in with KIOSK_DEBUG_RPC=1 in /etc/default/tc8-kiosk.
+		if [ "${KIOSK_DEBUG_RPC:-0}" = 1 ] || [ "${MEDIA_MODE:-full}" = photoframe ]; then
+			gs_set "$GS" services.webserver true
+			gs_set "$GS" services.webserverauthentication false
+		else
+			gs_set "$GS" services.webserver false
+		fi
 		# TC8 (tas5751 SAI) audio: the codec is 48k-family + stereo-only and
 		# Kodi disables ALSA resampling, so it opens the sink at the source
 		# rate (e.g. 44100 mono) and the hardware rejects it. Pin a fixed

@@ -64,8 +64,24 @@ log "applying config (new, changed, or first boot)"
 
 # --- apply ----------------------------------------------------------------
 KIOSK=${TC8_CFG_KIOSK:-/etc/default/tc8-kiosk}   # TC8_CFG_KIOSK override = test hook
-WPA_CONF=${TC8_CFG_WPA_CONF:-/etc/wpa_supplicant/wpa_supplicant-wlan0.conf}
-WLAN_NET=${TC8_CFG_WLAN_NET:-/etc/systemd/network/25-wlan0.network}
+
+# The wifi interface name is board-dependent: udev's predictable naming renames
+# a PCIe-attached brcmfmac radio after its slot (wlp1s0 on the C60) while an
+# SDIO-attached one keeps wlan0. Both the wpa_supplicant config filename and the
+# systemd unit instance encode that name, so detect it from the kernel's own
+# view. (TC8_CFG_WIFI_IFACE override = test hook.)
+WIFI_IFACE=${TC8_CFG_WIFI_IFACE:-}
+if [ -z "$WIFI_IFACE" ]; then
+	for p in /sys/class/net/wl* /sys/class/net/wlan*; do
+		[ -e "$p" ] || continue
+		WIFI_IFACE=$(basename "$p")
+		break
+	done
+fi
+WPA_CONF=${TC8_CFG_WPA_CONF:-/etc/wpa_supplicant/wpa_supplicant-${WIFI_IFACE:-wlan0}.conf}
+# One .network covers any wifi interface — its [Match] globs the name, so the
+# file is not per-interface.
+WLAN_NET=${TC8_CFG_WLAN_NET:-/etc/systemd/network/25-wifi.network}
 
 set_kv() {  # set_kv FILE KEY VALUE — replace `KEY=...` in place, else append
 	_f=$1; _k=$2; _v=$3
@@ -87,6 +103,7 @@ wifi_escape() {  # escape for a wpa_supplicant quoted string
 apply_wifi() {
 	[ -n "${wifi_ssid+x}" ] || return 0
 	[ -n "$wifi_ssid" ] || { log "empty WIFI_SSID — skipping wifi config"; return 0; }
+	[ -n "$WIFI_IFACE" ] || { log "no wifi interface — skipping wifi config"; return 0; }
 
 	install -d -m 0755 "$(dirname "$WPA_CONF")" "$(dirname "$WLAN_NET")"
 	{
@@ -98,26 +115,41 @@ apply_wifi() {
 		printf '\tscan_ssid=1\n'
 		if [ -n "${wifi_password+x}" ] && [ -n "$wifi_password" ]; then
 			printf '\tpsk="%s"\n' "$(wifi_escape "$wifi_password")"
+			# An AP with 802.11w required advertises only the SHA256 AKM, and a
+			# supplicant offering plain WPA-PSK alone is rejected at the RSN IE
+			# ("key mgmt mismatch"). SAE covers WPA3 transition mode and needs no
+			# extra package with wpasupplicant 2.10. ieee80211w=1 is optional
+			# PMF: management frames are protected where the AP offers it, and
+			# association still works on APs that do not.
+			printf '\tkey_mgmt=WPA-PSK WPA-PSK-SHA256 SAE\n'
+			printf '\tieee80211w=1\n'
 		else
 			printf '\tkey_mgmt=NONE\n'
 		fi
 		printf '}\n'
 	} > "$WPA_CONF"
-	chmod 0600 "$WPA_CONF"
+	chmod 0600 "$WPA_CONF"   # holds the PSK
 
 	cat > "$WLAN_NET" <<'EOF'
 [Match]
-Name=wlan0
+Name=wl* wlan*
 
 [Network]
 DHCP=yes
 EOF
+	# systemd-networkd reads its config unprivileged and reports an interface as
+	# "unmanaged" when it cannot read the matching file.
+	chmod 0644 "$WLAN_NET"
 
 	if command -v systemctl >/dev/null 2>&1; then
-		systemctl enable wpa_supplicant@wlan0.service >/dev/null 2>&1 || true
-		systemctl restart wpa_supplicant@wlan0.service systemd-networkd.service >/dev/null 2>&1 || true
+		# The template instance is the supplicant that reads
+		# wpa_supplicant-<iface>.conf; the generic wpa_supplicant.service claims
+		# the same radio from its D-Bus mode with no config of its own.
+		systemctl disable --now wpa_supplicant.service >/dev/null 2>&1 || true
+		systemctl enable "wpa_supplicant@${WIFI_IFACE}.service" >/dev/null 2>&1 || true
+		systemctl restart "wpa_supplicant@${WIFI_IFACE}.service" systemd-networkd.service >/dev/null 2>&1 || true
 	fi
-	log "configured wifi"
+	log "configured wifi on $WIFI_IFACE"
 }
 
 apply_profile() {

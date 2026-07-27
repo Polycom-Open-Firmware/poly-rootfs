@@ -78,10 +78,9 @@ kodi)
 			fi
 		}
 		# Kodi's HTTP control interface is unauthenticated and binds every
-		# interface, so it stays off unless something needs it: the
-		# photo-frame role drives the slideshow through it, and a bench
-		# panel opts in with KIOSK_DEBUG_RPC=1 in /etc/default/tc8-kiosk.
-		if [ "${KIOSK_DEBUG_RPC:-0}" = 1 ] || [ "${MEDIA_MODE:-full}" = photoframe ]; then
+		# interface, so it runs only where a bench panel asks for it with
+		# KIOSK_DEBUG_RPC=1 in /etc/default/tc8-kiosk.
+		if [ "${KIOSK_DEBUG_RPC:-0}" = 1 ]; then
 			gs_set "$GS" services.webserver true
 			gs_set "$GS" services.webserverauthentication false
 		else

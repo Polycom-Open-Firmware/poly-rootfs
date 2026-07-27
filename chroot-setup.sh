@@ -169,10 +169,6 @@ chmod 0755 /etc/tc8-config/update-bootloader.sh 2>/dev/null || true
 systemctl enable tc8-update-bootloader.service
 systemctl enable kiosk-vt.service
 systemctl enable kiosk.service
-# photo-frame autostart: no-op unless the media-player role sets
-# MEDIA_MODE=photoframe (see /etc/default/poly-media)
-chmod 0755 /usr/local/bin/poly-photoframe 2>/dev/null || true
-systemctl enable poly-photoframe.service
 # USB CDC ACM gadget: end-user console access via the panel's USB data port.
 # Plug the data port into a host -> /dev/ttyACM0 with a getty waiting.
 systemctl enable tc8-usb-gadget.service
